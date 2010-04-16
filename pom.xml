@@ -4,11 +4,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>net.joshdevins.rabbitmq</groupId>
-    <artifactId>rabbitmq-java-ha-client</artifactId>
+    <artifactId>amqp-ha-client</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>RabbitMQ Java HA Client</name>
+    <name>AMQP HA Client</name>
     <url>http://www.joshdevins.net</url>
 
     <build>

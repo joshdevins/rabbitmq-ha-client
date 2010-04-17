@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd">
+
+    <!-- load generator beans, alias switches implementation -->
+    <alias alias="loadTask" name="rabbitMqLoadTask" />
+
+    <bean id="atomicCounterLoadTask" class="net.joshdevins.sandbox.rabbitmq.AtomicCounterLoadTask" />
+    <bean id="rabbitMqLoadTask" class="net.joshdevins.sandbox.rabbitmq.RabbitMqLoadTask">
+        <constructor-arg ref="rabbitMqTemplateBean" />
+    </bean>
+
+    <!-- RabbitMQ beans -->
+    <bean id="amqpConnectionFactory" class="com.rabbitmq.client.ConnectionFactory" />
+
+    <bean id="haAmqpConnectionFactory" class="net.joshdevins.amqp.client.ha.HaAmqpConnectionFactory">
+        <constructor-arg value="devins-ubuntu-vm01, devins-ubuntu-vm02" />
+    </bean>
+
+    <bean id="haAmqpTemplate" class="net.joshdevins.amqp.client.ha.HaAmqpTemplate">
+        <constructor-arg ref="channelFactoryBean" />
+    </bean>
+
+</beans>

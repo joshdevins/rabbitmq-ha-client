@@ -4,11 +4,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>net.joshdevins.rabbitmq</groupId>
-    <artifactId>amqp-ha-client</artifactId>
+    <artifactId>rabbitmq-ha-client</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>AMQP HA Client</name>
+    <name>RabbitMQ HA Client</name>
     <url>http://www.joshdevins.net</url>
 
     <build>
@@ -24,12 +24,48 @@
     </build>
 
     <dependencies>
-
         <dependency>
             <groupId>com.rabbitmq</groupId>
             <artifactId>amqp-client</artifactId>
             <version>1.7.2</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-cli</groupId>
+                    <artifactId>commons-cli</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>commons-io</groupId>
+                    <artifactId>commons-io</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- SPRING -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>3.0.2.RELEASE</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <!-- temporary -->
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jms</artifactId>
+            <version>3.0.2.RELEASE</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-tx</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- STANDARD -->
@@ -44,7 +80,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.4</version>
+            <version>4.8.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

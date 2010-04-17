@@ -3,16 +3,10 @@ AMQP HA Client
 
 Some AMQP brokers and specifically RabbitMQ do not support HA out of the box. Rationale for this varies as much as peoples' requirements do, so it's not super surprising that this is the case. However there are basic HA possibilities with RabbitMQ, specifically active-passive brokers behind a plain old TCP load balancer. For a better description of the scenario, please read the [blog post](http://www.joshdevins.net/2010/04/16/rabbitmq-ha-testing-with-haproxy) that started this project. Suffice it to say that in order to make this and many HA topologies work, a client that can do automatic, graceful failover and redelivery is required. Bonus points of course if you can auto-magically deduplicate messages in the consumer as is done in Beetle.
 
-Author
-------
-
-[Josh Devins](http://www.joshdevins.net)
-info@joshdevins.net
-
 License
 -------
 
-Copyright 2010 Josh Devins
+Copyright 2010 [Josh Devins](http://www.joshdevins.net)
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 

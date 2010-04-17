@@ -12,7 +12,7 @@
     </appender>
 
     <!-- application logging -->
-    <logger name="net.joshdevins.sandbox">
+    <logger name="net.joshdevins.rabbitmq.client.ha">
         <level value="info" />
     </logger>
 

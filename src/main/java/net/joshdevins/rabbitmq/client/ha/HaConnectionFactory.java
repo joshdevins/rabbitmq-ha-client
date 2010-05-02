@@ -2,7 +2,6 @@ package net.joshdevins.rabbitmq.client.ha;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -37,24 +36,6 @@ import com.rabbitmq.client.ShutdownSignalException;
 public class HaConnectionFactory extends ConnectionFactory
 		implements
 			InitializingBean {
-
-	protected class HaConnectionInvocationHandler implements InvocationHandler {
-
-		private final Connection target;
-
-		public HaConnectionInvocationHandler(final Connection target) {
-
-			assert target != null;
-			this.target = target;
-		}
-
-		public Object invoke(final Object proxy, final Method method,
-				final Object[] args) throws Throwable {
-
-			// TODO Auto-generated method stub
-			return null;
-		}
-	}
 
 	protected class HaConnectionShutdownListener implements ShutdownListener {
 
@@ -176,12 +157,11 @@ public class HaConnectionFactory extends ConnectionFactory
 		this.haConnectionManager = haConnectionManager;
 	}
 
-	@SuppressWarnings("unchecked")
 	protected Connection createConnectionProxy(final Connection targetConnection) {
 
 		ClassLoader classLoader = Connection.class.getClassLoader();
-		Class[] interfaces = {Connection.class};
-		InvocationHandler invocationHandler = new HaConnectionInvocationHandler(
+		Class<?>[] interfaces = {Connection.class};
+		InvocationHandler invocationHandler = new HaConnectionProxy(
 				targetConnection);
 
 		return (Connection) Proxy.newProxyInstance(classLoader, interfaces,

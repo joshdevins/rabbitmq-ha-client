@@ -2,28 +2,15 @@
 <beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd">
 
-    <bean id="singleNodeConnectionFactory" class="com.rabbitmq.client.ConnectionFactory">
-        <constructor-arg>
-            <!-- not needed if just using defaults, for illustration purposes only -->
-            <bean class="com.rabbitmq.client.ConnectionParameters">
-                <property name="virtualHost" value="/" />
-                <property name="username" value="guest" />
-                <property name="password" value="guest" />
-                <property name="requestedHeartbeat" value="0" />
-            </bean>
-        </constructor-arg>
+    <bean id="rabbitConnectionFactory" class="com.rabbitmq.client.ConnectionFactory" />
+
+    <bean id="connectionFactory" class="org.springframework.amqp.rabbit.connection.CachingConnectionFactory">
+        <constructor-arg value="devins-ubuntu-vm01" />
     </bean>
 
-    <bean id="haConnectionFactory" class="net.joshdevins.rabbitmq.client.ha.ConnectionFactory">
-        <constructor-arg ref="singleNodeConnectionFactory" />
-        <constructor-arg value="devins-ubuntu-vm01, devins-ubuntu-vm02" />
-    </bean>
-
-    <bean id="haChannelFactory" class="net.joshdevins.rabbitmq.client.ha.HaChannelFactory">
-    </bean>
-
-    <bean id="rabbitMqHaTemplate" class="net.joshdevins.rabbitmq.client.ha.RabbitMqHaTemplate">
-        <constructor-arg ref="haChannelFactory" />
+    <bean id="rabbitMqTemplate" class="org.springframework.amqp.rabbit.core.RabbitTemplate">
+        <constructor-arg ref="connectionFactory" />
+        <property name="defaultExchange" value="amq.topic" />
     </bean>
 
 </beans>

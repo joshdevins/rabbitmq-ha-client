@@ -2,9 +2,10 @@
 <beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd">
 
-    <bean id="rabbitConnectionFactory" class="com.rabbitmq.client.ConnectionFactory" />
+    <bean id="haConnectionFactory" class="net.joshdevins.rabbitmq.client.ha.HaConnectionFactory" />
 
     <bean id="connectionFactory" class="org.springframework.amqp.rabbit.connection.CachingConnectionFactory">
+        <constructor-arg ref="haConnectionFactory" />
         <constructor-arg value="devins-ubuntu-vm01" />
     </bean>
 

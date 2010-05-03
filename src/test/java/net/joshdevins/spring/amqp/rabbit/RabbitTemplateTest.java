@@ -39,11 +39,7 @@ public class RabbitTemplateTest {
 		// broker stop_app -- exception
 		// broker stop -- exception
 		// broker kill -- exception
-		try {
-			template.convertAndSend(date + " : 2");
-		} catch (Exception e) {
-			// expected
-		}
+		template.convertAndSend(date + " : 2");
 
 		// broker start_app -- exception
 		// broker start -- exception

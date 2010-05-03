@@ -1,20 +1,18 @@
 package net.joshdevins.rabbitmq.client.ha;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
-import org.springframework.beans.factory.InitializingBean;
 
 import com.rabbitmq.client.Address;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.ConnectionParameters;
 import com.rabbitmq.client.ShutdownListener;
 import com.rabbitmq.client.ShutdownSignalException;
 
@@ -31,140 +29,205 @@ import com.rabbitmq.client.ShutdownSignalException;
  * using this underlying.
  * </p>
  * 
- * @author devins
+ * @author Josh Devins <info@joshdevins.net>
  */
-public class HaConnectionFactory extends ConnectionFactory
-		implements
-			InitializingBean {
+public class HaConnectionFactory extends ConnectionFactory {
 
-	protected class HaConnectionShutdownListener implements ShutdownListener {
+	/**
+	 * Listener to {@link Connection} shutdowns. Hooks together the
+	 * {@link HaConnectionProxy} to the shutdown event.
+	 */
+	private class HaShutdownListener implements ShutdownListener {
 
-		public void shutdownCompleted(final ShutdownSignalException cause) {
-			// TODO Auto-generated method stub
+		private final HaConnectionProxy connectionProxy;
 
+		public HaShutdownListener(final HaConnectionProxy connectionProxy) {
+
+			assert connectionProxy != null;
+			this.connectionProxy = connectionProxy;
+		}
+
+		public void shutdownCompleted(
+				final ShutdownSignalException shutdownSignalException) {
+
+			if (LOG.isDebugEnabled()) {
+				LOG.debug("Shutdown signal caught: "
+						+ shutdownSignalException.getMessage());
+			}
+
+			// only try to reconnect if it was a problem with the broker
+			if (!shutdownSignalException.isInitiatedByApplication()) {
+				asyncReconnect(this, connectionProxy);
+			}
+
+			if (LOG.isDebugEnabled()) {
+				LOG.debug("Ignoring shutdown signal, application initiated");
+			}
+		}
+	}
+
+	/**
+	 * Kicks off to time the reconnection attempt, then makes the reconnection
+	 * attempt.
+	 */
+	private class ReconnectionTask implements Runnable {
+
+		private final ShutdownListener listener;
+
+		private final HaConnectionProxy connectionProxy;
+
+		ReconnectionTask(final ShutdownListener listener,
+				final HaConnectionProxy connectionProxy) {
+
+			assert listener != null;
+			assert connectionProxy != null;
+
+			this.listener = listener;
+			this.connectionProxy = connectionProxy;
+		}
+
+		public void run() {
+
+			StringBuilder sb = new StringBuilder();
+			sb.append('[');
+			for (int i = 0; i < connectionProxy.getKnownHosts().length; i++) {
+
+				if (i > 0) {
+					sb.append(',');
+				}
+
+				sb.append(connectionProxy.getKnownHosts()[i].toString());
+			}
+			sb.append(']');
+
+			String addressesAsString = sb.toString();
+
+			if (LOG.isDebugEnabled()) {
+				LOG.info("Reconnection starting: addresses="
+						+ addressesAsString + ", wait="
+						+ reconnectionWaitMillis);
+			}
+
+			Thread.currentThread();
+			try {
+				Thread.sleep(reconnectionWaitMillis);
+			} catch (InterruptedException ie) {
+
+				if (LOG.isDebugEnabled()) {
+					LOG
+							.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
+				}
+			}
+
+			try {
+				Connection connection;
+				if (connectionProxy.getMaxRedirects() == null) {
+					connection = newTargetConnection(connectionProxy
+							.getKnownHosts(), 0);
+				} else {
+					connection = newTargetConnection(connectionProxy
+							.getKnownHosts(), connectionProxy.getMaxRedirects());
+				}
+
+				if (LOG.isDebugEnabled()) {
+					LOG.info("Reconnection complete: addresses="
+							+ addressesAsString);
+				}
+
+				connection.addShutdownListener(listener);
+
+				// refresh any channels created by previous connection
+				connectionProxy.setTargetConnection(connection);
+				connectionProxy.replaceChannelsInProxies();
+
+			} catch (IOException ioe) {
+				// TODO: reconnection retries!
+				LOG.warn("Failed to reconnect: addresses=" + addressesAsString,
+						ioe);
+			}
 		}
 	}
 
 	private static final Logger LOG = Logger
 			.getLogger(HaConnectionFactory.class);
 
-	private final com.rabbitmq.client.ConnectionFactory connectionFactory;
-
-	private final Set<Address> addresses;
-
-	private HaConnectionManager haConnectionManager;
-
-	private Set<StatefulConnection> connections;
-
-	public HaConnectionFactory(
-			final com.rabbitmq.client.ConnectionFactory connectionFactory,
-			final Address... addresses) {
-
-		Validate.notNull(connectionFactory, "connectionFactory is required");
-		Validate.notEmpty(addresses, "one or more addresses are required");
-
-		this.connectionFactory = connectionFactory;
-
-		// ensure no duplicate addresses
-		Set<Address> dedupedAddresses = new HashSet<Address>(addresses.length);
-		dedupedAddresses.addAll(Arrays.asList(addresses));
-
-		this.addresses = dedupedAddresses;
-	}
-
-	public HaConnectionFactory(
-			final com.rabbitmq.client.ConnectionFactory connectionFactory,
-			final String addresses) {
-
-		this(connectionFactory, Address.parseAddresses(addresses));
-	}
-
 	/**
-	 * Creates a default {@link HaConnectionManager} if none was set as a
-	 * property.
+	 * Default value = 10000 = 10 seconds
 	 */
-	public void afterPropertiesSet() throws Exception {
+	private static final long DEFAULT_RECONNECTION_WAIT_MILLIS = 10000;
 
-		// create a default HaConnectionManager if not set
-		if (haConnectionManager == null) {
-			haConnectionManager = new HaConnectionManager();
-		}
+	private long reconnectionWaitMillis = DEFAULT_RECONNECTION_WAIT_MILLIS;
 
-		// Set<StatefulConnection> newConnections = new
-		// HashSet<StatefulConnection>(
-		// addresses.size());
-		//
-		// for (Address address : addresses) {
-		//
-		// if (LOG.isDebugEnabled()) {
-		// LOG.debug("Creating stateful connection for: "
-		// + address.toString());
-		// }
-		//
-		// StatefulConnection connection = new StatefulConnection(
-		// connectionFactory, address);
-		//
-		// connection.addListener(haConnectionManager);
-		// connection.connect();
-		//
-		// newConnections.add(connection);
-		// }
-		//
-		// connections = Collections.unmodifiableSet(newConnections);
+	private final ExecutorService executorService;
+
+	public HaConnectionFactory() {
+		super();
+		executorService = Executors.newCachedThreadPool();
+	}
+
+	public HaConnectionFactory(final ConnectionParameters params) {
+		super(params);
+		executorService = Executors.newCachedThreadPool();
 	}
 
 	/**
-	 * @see ConnectionFactory#newConnection(Address[])
-	 */
-	@Override
-	public Connection newConnection(final Address[] addrs) throws IOException {
-
-		return createConnectionProxy(super.newConnection(addrs));
-	}
-
-	/**
+	 * Wraps a raw {@link Connection} with an HA-aware proxy.
+	 * 
 	 * @see ConnectionFactory#newConnection(Address[], int)
 	 */
 	@Override
 	public Connection newConnection(final Address[] addrs,
 			final int maxRedirects) throws IOException {
 
-		return createConnectionProxy(super.newConnection(addrs, maxRedirects));
+		return createConnectionProxy(maxRedirects, super.newConnection(addrs,
+				maxRedirects));
 	}
 
 	/**
-	 * @see ConnectionFactory#newConnection(String)
+	 * Set the reconnection wait time in milliseconds. The value must be greater
+	 * than 0. This is the number of milliseconds between getting a dropped
+	 * connection and a reconnection attempt.
 	 */
-	@Override
-	public Connection newConnection(final String hostName) throws IOException {
+	public void setReconnectionWaitMillis(final long reconnectionIntervalMillis) {
 
-		return createConnectionProxy(super.newConnection(hostName));
+		Validate.isTrue(reconnectionIntervalMillis > 0,
+				"reconnectionIntervalMillis must be greater than 0");
+		reconnectionWaitMillis = reconnectionIntervalMillis;
 	}
 
 	/**
-	 * @see ConnectionFactory#newConnection(String, int)
+	 * Creates an {@link HaConnectionProxy} around a raw {@link Connection}.
 	 */
-	@Override
-	public Connection newConnection(final String hostName, final int portNumber)
-			throws IOException {
-
-		return createConnectionProxy(super.newConnection(hostName, portNumber));
-	}
-
-	public void setHaConnectionManager(
-			final HaConnectionManager haConnectionManager) {
-
-		this.haConnectionManager = haConnectionManager;
-	}
-
-	protected Connection createConnectionProxy(final Connection targetConnection) {
+	protected Connection createConnectionProxy(final Integer maxRedirects,
+			final Connection targetConnection) {
 
 		ClassLoader classLoader = Connection.class.getClassLoader();
 		Class<?>[] interfaces = {Connection.class};
-		InvocationHandler invocationHandler = new HaConnectionProxy(
+
+		HaConnectionProxy proxy = new HaConnectionProxy(maxRedirects,
 				targetConnection);
 
-		return (Connection) Proxy.newProxyInstance(classLoader, interfaces,
-				invocationHandler);
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("Creating connection proxy: "
+					+ targetConnection.toString());
+		}
+
+		Connection target = (Connection) Proxy.newProxyInstance(classLoader,
+				interfaces, proxy);
+		target.addShutdownListener(new HaShutdownListener(proxy));
+
+		return target;
+	}
+
+	private void asyncReconnect(final ShutdownListener listener,
+			final HaConnectionProxy connectionProxy) {
+
+		executorService.submit(new ReconnectionTask(listener, connectionProxy));
+	}
+
+	private Connection newTargetConnection(final Address[] addrs,
+			final int maxRedirects) throws IOException {
+
+		return super.newConnection(addrs, maxRedirects);
 	}
 }

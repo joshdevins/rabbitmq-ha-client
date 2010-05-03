@@ -13,7 +13,7 @@
 
     <!-- application logging -->
     <logger name="net.joshdevins.rabbitmq.client.ha">
-        <level value="info" />
+        <level value="debug" />
     </logger>
 
     <!-- 3rd party logging -->

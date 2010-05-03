@@ -1,12 +1,12 @@
 package net.joshdevins.rabbitmq.client.ha;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
 import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
 
-import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.Channel;
 
 public class HaChannelProxy implements InvocationHandler {
@@ -37,7 +37,7 @@ public class HaChannelProxy implements InvocationHandler {
 			final Object[] args) throws Throwable {
 
 		// invoke a method max times
-		AlreadyClosedException lastAce = null;
+		IOException lastIOException = null;
 		for (int i = 1; i <= maxOperationInvocations; i++) {
 
 			// delegate all other method invocations
@@ -47,17 +47,19 @@ public class HaChannelProxy implements InvocationHandler {
 					return InvocationHandlerUtils.delegateMethodInvocation(
 							method, args, target);
 
-				} catch (AlreadyClosedException ace) {
+				} catch (IOException ioe) {
 					// deal with this outside the synchronized block so that if
 					// a reconnection does occur, it can replace the target
+					lastIOException = ioe;
 				}
 			}
 
 			if (LOG.isDebugEnabled()) {
-				LOG.debug("Operation invocation failed, sleeping: i=" + i
+				LOG.debug("Operation invocation failed on IOException: i=" + i
 						+ ", maxOperationInvocations="
 						+ maxOperationInvocations + ", timeout="
-						+ operationRetryTimeoutMillis);
+						+ operationRetryTimeoutMillis + "message="
+						+ lastIOException.getMessage());
 			}
 
 			try {
@@ -69,14 +71,14 @@ public class HaChannelProxy implements InvocationHandler {
 		}
 
 		// can't happen
-		if (lastAce == null) {
+		if (lastIOException == null) {
 			throw new IllegalStateException(
 					"No operation invocations were attempted! This is a bug!");
 		}
 
 		LOG.warn("Operation invocation reached max allowable: "
-				+ maxOperationInvocations, lastAce);
-		throw lastAce;
+				+ maxOperationInvocations, lastIOException);
+		throw lastIOException;
 	}
 
 	public void setMaxOperationInvocations(final int maxOperationInvocations) {

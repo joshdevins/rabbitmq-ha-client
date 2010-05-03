@@ -29,11 +29,17 @@ public class HaConnectionProxy implements InvocationHandler {
 
 	private final Set<HaChannelProxy> channelProxies;
 
-	public HaConnectionProxy(final Integer maxRedirects, final Connection target) {
+	private final RetryStrategy retryStrategy;
+
+	public HaConnectionProxy(final Integer maxRedirects,
+			final Connection target, final RetryStrategy retryStrategy) {
 
 		assert target != null;
+		assert retryStrategy != null;
+
 		this.target = target;
 		this.maxRedirects = maxRedirects;
+		this.retryStrategy = retryStrategy;
 
 		channelProxies = new HashSet<HaChannelProxy>();
 	}
@@ -75,7 +81,7 @@ public class HaConnectionProxy implements InvocationHandler {
 		Class<?>[] interfaces = {Channel.class};
 
 		// create the proxy and add to the set of channels we have created
-		HaChannelProxy proxy = new HaChannelProxy(targetChannel);
+		HaChannelProxy proxy = new HaChannelProxy(targetChannel, retryStrategy);
 
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("Creating channel proxy: " + targetChannel.toString());

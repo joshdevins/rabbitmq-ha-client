@@ -58,10 +58,12 @@ public class HaConnectionFactory extends ConnectionFactory {
 			// only try to reconnect if it was a problem with the broker
 			if (!shutdownSignalException.isInitiatedByApplication()) {
 				asyncReconnect(this, connectionProxy);
-			}
 
-			if (LOG.isDebugEnabled()) {
-				LOG.debug("Ignoring shutdown signal, application initiated");
+			} else {
+				if (LOG.isDebugEnabled()) {
+					LOG
+							.debug("Ignoring shutdown signal, application initiated");
+				}
 			}
 		}
 	}
@@ -103,7 +105,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 			String addressesAsString = sb.toString();
 
 			if (LOG.isDebugEnabled()) {
-				LOG.info("Reconnection starting: addresses="
+				LOG.info("Reconnection starting, sleeping: addresses="
 						+ addressesAsString + ", wait="
 						+ reconnectionWaitMillis);
 			}
@@ -160,6 +162,8 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 	private final ExecutorService executorService;
 
+	private RetryStrategy retryStrategy;
+
 	public HaConnectionFactory() {
 		super();
 		executorService = Executors.newCachedThreadPool();
@@ -195,6 +199,10 @@ public class HaConnectionFactory extends ConnectionFactory {
 		reconnectionWaitMillis = reconnectionIntervalMillis;
 	}
 
+	public void setRetryStrategy(final RetryStrategy retryStrategy) {
+		this.retryStrategy = retryStrategy;
+	}
+
 	/**
 	 * Creates an {@link HaConnectionProxy} around a raw {@link Connection}.
 	 */
@@ -205,7 +213,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 		Class<?>[] interfaces = {Connection.class};
 
 		HaConnectionProxy proxy = new HaConnectionProxy(maxRedirects,
-				targetConnection);
+				targetConnection, retryStrategy);
 
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("Creating connection proxy: "

@@ -4,41 +4,34 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
-import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
 
+import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.Channel;
 
 public class HaChannelProxy implements InvocationHandler {
 
 	private static final Logger LOG = Logger.getLogger(HaChannelProxy.class);
 
-	/**
-	 * Default value = 10000 = 10 seconds
-	 */
-	private static final long DEFAULT_OPERATION_RETRY_TIMEOUT_MILLIS = 10000;
-
-	/**
-	 * Default value = 2 (one retry)
-	 */
-	private static final int DEFAULT_MAX_OPERATION_INVOCATIONS = 2;
-
 	private Channel target;
 
-	private long operationRetryTimeoutMillis = DEFAULT_OPERATION_RETRY_TIMEOUT_MILLIS;
+	private final RetryStrategy retryStrategy;
 
-	private int maxOperationInvocations = DEFAULT_MAX_OPERATION_INVOCATIONS;
-
-	public HaChannelProxy(final Channel target) {
+	public HaChannelProxy(final Channel target,
+			final RetryStrategy retryStrategy) {
 		setTargetChannel(target);
+
+		assert retryStrategy != null;
+		this.retryStrategy = retryStrategy;
 	}
 
 	public Object invoke(final Object proxy, final Method method,
 			final Object[] args) throws Throwable {
 
 		// invoke a method max times
-		IOException lastIOException = null;
-		for (int i = 1; i <= maxOperationInvocations; i++) {
+		Exception lastException = null;
+		boolean keepOnInvoking = true;
+		for (int numOperationInvocations = 1; keepOnInvoking; numOperationInvocations++) {
 
 			// delegate all other method invocations
 			// sych on target object to make sure it's not being replaced
@@ -47,53 +40,24 @@ public class HaChannelProxy implements InvocationHandler {
 					return InvocationHandlerUtils.delegateMethodInvocation(
 							method, args, target);
 
+					// deal with exceptions outside the synchronized block so
+					// that if a reconnection does occur, it can replace the
+					// target
 				} catch (IOException ioe) {
-					// deal with this outside the synchronized block so that if
-					// a reconnection does occur, it can replace the target
-					lastIOException = ioe;
+					lastException = ioe;
+
+				} catch (AlreadyClosedException ace) {
+					lastException = ace;
 				}
 			}
 
-			if (LOG.isDebugEnabled()) {
-				LOG.debug("Operation invocation failed on IOException: i=" + i
-						+ ", maxOperationInvocations="
-						+ maxOperationInvocations + ", timeout="
-						+ operationRetryTimeoutMillis + "message="
-						+ lastIOException.getMessage());
-			}
-
-			try {
-				Thread.sleep(operationRetryTimeoutMillis);
-			} catch (InterruptedException ie) {
-				LOG
-						.warn("Thread interrupted while timeout waiting for reconnection to occurr. Just going on to next invocation...");
-			}
+			keepOnInvoking = retryStrategy.shouldRetry(lastException,
+					numOperationInvocations);
 		}
 
-		// can't happen
-		if (lastIOException == null) {
-			throw new IllegalStateException(
-					"No operation invocations were attempted! This is a bug!");
-		}
-
-		LOG.warn("Operation invocation reached max allowable: "
-				+ maxOperationInvocations, lastIOException);
-		throw lastIOException;
-	}
-
-	public void setMaxOperationInvocations(final int maxOperationInvocations) {
-
-		Validate.isTrue(maxOperationInvocations > 0,
-				"max operation invocations must be 1 or greater");
-		this.maxOperationInvocations = maxOperationInvocations;
-	}
-
-	public void setNoOperationRetries() {
-		maxOperationInvocations = 0;
-	}
-
-	public void setOperationRetryTimeoutMillis(final long timeout) {
-		operationRetryTimeoutMillis = timeout;
+		LOG.warn("Operation invocation failed after retry strategy gave up: ",
+				lastException);
+		throw lastException;
 	}
 
 	protected Channel getTargetChannel() {

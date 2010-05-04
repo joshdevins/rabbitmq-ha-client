@@ -90,6 +90,9 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 		public void run() {
 
+			// need to close the connection gate on the channels
+			connectionProxy.closeConnectionGate();
+
 			StringBuilder sb = new StringBuilder();
 			sb.append('[');
 			for (int i = 0; i < connectionProxy.getKnownHosts().length; i++) {

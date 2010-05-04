@@ -4,10 +4,7 @@
 
     <bean id="haConnectionFactory" class="net.joshdevins.rabbitmq.client.ha.HaConnectionFactory">
         <property name="retryStrategy">
-            <bean class="net.joshdevins.rabbitmq.client.ha.SimpleRetryStrategy">
-                <property name="maxOperationInvocations" value="4" />
-                <property name="operationRetryTimeoutMillis" value="5000"></property>
-            </bean>
+            <bean class="net.joshdevins.rabbitmq.client.ha.BlockingRetryStrategy" />
         </property>
     </bean>
 

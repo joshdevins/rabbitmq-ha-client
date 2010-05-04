@@ -17,12 +17,22 @@ public class HaChannelProxy implements InvocationHandler {
 
 	private final RetryStrategy retryStrategy;
 
+	private final BooleanGate connectionGate;
+
 	public HaChannelProxy(final Channel target,
 			final RetryStrategy retryStrategy) {
-		setTargetChannel(target);
 
+		assert target != null;
 		assert retryStrategy != null;
+
+		this.target = target;
 		this.retryStrategy = retryStrategy;
+
+		connectionGate = new BooleanGate();
+	}
+
+	public void closeConnectionGate() {
+		connectionGate.close();
 	}
 
 	public Object invoke(final Object proxy, final Method method,
@@ -30,11 +40,14 @@ public class HaChannelProxy implements InvocationHandler {
 
 		// invoke a method max times
 		Exception lastException = null;
+		boolean shutdownRecoverable = true;
 		boolean keepOnInvoking = true;
-		for (int numOperationInvocations = 1; keepOnInvoking; numOperationInvocations++) {
 
-			// delegate all other method invocations
-			// sych on target object to make sure it's not being replaced
+		for (int numOperationInvocations = 1; keepOnInvoking
+				&& shutdownRecoverable; numOperationInvocations++) {
+
+			// delegate all method invocations
+			// sych on target Channel to make sure it's not being replaced
 			synchronized (target) {
 				try {
 					return InvocationHandlerUtils.delegateMethodInvocation(
@@ -45,18 +58,32 @@ public class HaChannelProxy implements InvocationHandler {
 					// target
 				} catch (IOException ioe) {
 					lastException = ioe;
+					// shutdownRecoverable = HaUtils.isShutdownRecoverable(ioe);
 
 				} catch (AlreadyClosedException ace) {
 					lastException = ace;
+					// shutdownRecoverable = HaUtils.isShutdownRecoverable(ace);
 				}
 			}
 
-			keepOnInvoking = retryStrategy.shouldRetry(lastException,
-					numOperationInvocations);
+			// only keep on invoking if error is recoverable
+			if (shutdownRecoverable) {
+				keepOnInvoking = retryStrategy.shouldRetry(lastException,
+						numOperationInvocations, connectionGate);
+			}
 		}
 
-		LOG.warn("Operation invocation failed after retry strategy gave up: ",
-				lastException);
+		if (shutdownRecoverable) {
+			LOG.warn(
+					"Operation invocation failed after retry strategy gave up",
+					lastException);
+		} else {
+			LOG
+					.warn(
+							"Operation invocation failed with unrecoverable shutdown signal",
+							lastException);
+		}
+
 		throw lastException;
 	}
 
@@ -64,28 +91,29 @@ public class HaChannelProxy implements InvocationHandler {
 		return target;
 	}
 
-	protected synchronized void setTargetChannel(final Channel target) {
+	protected void markAsClosed() {
+		connectionGate.close();
+	}
+
+	protected void setTargetChannel(final Channel target) {
 
 		assert target != null;
 
-		if (this.target != null) {
+		if (LOG.isDebugEnabled() && this.target != null) {
+			LOG.debug("Replacing channel: channel=" + this.target.toString());
+		}
+
+		synchronized (this.target) {
+
+			this.target = target;
 
 			if (LOG.isDebugEnabled() && this.target != null) {
-				LOG.debug("Replacing channel: channel="
-						+ this.target.toString());
+				LOG
+						.debug("Replaced channel: channel="
+								+ this.target.toString());
 			}
-
-			synchronized (this.target) {
-
-				this.target = target;
-
-				if (LOG.isDebugEnabled() && this.target != null) {
-					LOG.debug("Replaced channel: channel="
-							+ this.target.toString());
-				}
-			}
-		} else {
-			this.target = target;
 		}
+
+		connectionGate.open();
 	}
 }

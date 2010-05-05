@@ -7,10 +7,11 @@ import net.joshdevins.rabbitmq.client.ha.BooleanReentrantLatch;
  * 
  * @author Josh Devins <info@joshdevins.net>
  */
-public class NoRetryStrategy implements RetryStrategy {
+public class NeverRetryStrategy implements RetryStrategy {
 
 	public boolean shouldRetry(final Exception e,
-			final int numOperationInvocations, final BooleanReentrantLatch connectionGate) {
+			final int numOperationInvocations,
+			final BooleanReentrantLatch connectionGate) {
 		return false;
 	}
 }

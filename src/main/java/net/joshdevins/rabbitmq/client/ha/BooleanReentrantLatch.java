@@ -1,130 +1,149 @@
+/*
+ * Copyright 2010 Josh Devins
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.joshdevins.rabbitmq.client.ha;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
+/**
+ * A reentrant latch with simple open/closed semantics.
+ * 
+ * @author Josh Devins
+ */
 public class BooleanReentrantLatch {
 
-	/**
-	 * Synchronization control for {@link BooleanReentrantLatch}. Uses
-	 * {@link AbstractQueuedSynchronizer} state to represent gate state.
-	 * 
-	 * <p>
-	 * states: open == 0, closed == 1
-	 * </p>
-	 */
-	private static final class Sync extends AbstractQueuedSynchronizer {
+    private final Sync sync;
 
-		private static final long serialVersionUID = -7271227048279204885L;
+    public BooleanReentrantLatch() {
+        this(true);
+    }
 
-		protected Sync(final boolean open) {
-			setState(open ? 0 : 1);
-		}
+    public BooleanReentrantLatch(final boolean open) {
+        sync = new Sync(open);
+    }
 
-		@Override
-		public boolean tryReleaseShared(final int releases) {
+    public void close() {
+        sync.acquireShared(1);
+    }
 
-			// only open gate if it's currently closed (atomically)
-			return compareAndSetState(1, 0);
-		}
+    /**
+     * Equality is based on the current state of both latches. That is, they
+     * must both be open or both closed.
+     */
+    @Override
+    public boolean equals(final Object obj) {
 
-		protected boolean isOpen() {
-			return getState() == 0;
-		}
+        if(!(obj instanceof BooleanReentrantLatch)) {
+            return false;
+        }
 
-		@Override
-		protected int tryAcquireShared(final int acquires) {
+        BooleanReentrantLatch rhs = (BooleanReentrantLatch) obj;
+        return isOpen() == rhs.isOpen();
+    }
 
-			// if acquires is 0, this is a test only not an acquisition attempt
-			if (acquires == 0) {
+    /**
+     * For information purposes only. It is safest to call {@link #waitUntilOpen(long)}.
+     */
+    public boolean isClosed() {
+        return !isOpen();
+    }
 
-				// if open, thread can proceed right away
-				// if closed, thread needs to wait
-				// this is a fake out since lock is not actually obtained
-				return isOpen() ? 1 : -1;
-			}
+    /**
+     * For information purposes only. It is safest to call {@link #waitUntilOpen(long)}.
+     */
+    public boolean isOpen() {
+        return sync.isOpen();
+    }
 
-			// if acquires is 1, this is an acquisition attempt
-			// close gate even if it's already closed
-			setState(1);
-			return 1;
-		}
-	}
+    public void open() {
+        sync.releaseShared(1);
+    }
 
-	private final Sync sync;
+    /**
+     * Returns a string identifying this latch, as well as its state: open or
+     * closed.
+     * 
+     * @return a string identifying this latch, as well as its state
+     */
+    @Override
+    public String toString() {
+        return super.toString() + "[" + (isOpen() ? "open" : "closed") + "]";
+    }
 
-	public BooleanReentrantLatch() {
-		this(true);
-	}
+    /**
+     * Waits for the gate to open. If this returns without an exception, the
+     * gate is open.
+     */
+    public void waitUntilOpen() throws InterruptedException {
+        sync.acquireSharedInterruptibly(0);
+    }
 
-	public BooleanReentrantLatch(final boolean open) {
-		sync = new Sync(open);
-	}
+    /**
+     * Waits for the gate to open.
+     * 
+     * @return true if the gate is now open, false if the timeout was reached
+     */
+    public boolean waitUntilOpen(final long timeout, final TimeUnit unit) throws InterruptedException {
+        return sync.tryAcquireSharedNanos(0, unit.toNanos(timeout));
+    }
 
-	public void close() {
-		sync.acquireShared(1);
-	}
+    /**
+     * Synchronization control for {@link BooleanReentrantLatch}. Uses {@link AbstractQueuedSynchronizer} state to
+     * represent gate state.
+     * 
+     * <p>
+     * states: open == 0, closed == 1
+     * </p>
+     */
+    private static final class Sync extends AbstractQueuedSynchronizer {
 
-	/**
-	 * Equality is based on the current state of both latches. That is, they
-	 * must both be open or both closed.
-	 */
-	@Override
-	public boolean equals(final Object obj) {
+        private static final long serialVersionUID = -7271227048279204885L;
 
-		if (!(obj instanceof BooleanReentrantLatch)) {
-			return false;
-		}
+        protected Sync(final boolean open) {
+            setState(open ? 0 : 1);
+        }
 
-		BooleanReentrantLatch rhs = (BooleanReentrantLatch) obj;
-		return isOpen() == rhs.isOpen();
-	}
+        @Override
+        public boolean tryReleaseShared(final int releases) {
 
-	/**
-	 * For information purposes only. It is safest to call
-	 * {@link #waitUntilOpen(long)}.
-	 */
-	public boolean isClosed() {
-		return !isOpen();
-	}
+            // only open gate if it's currently closed (atomically)
+            return compareAndSetState(1, 0);
+        }
 
-	/**
-	 * For information purposes only. It is safest to call
-	 * {@link #waitUntilOpen(long)}.
-	 */
-	public boolean isOpen() {
-		return sync.isOpen();
-	}
+        protected boolean isOpen() {
+            return getState() == 0;
+        }
 
-	public void open() {
-		sync.releaseShared(1);
-	}
+        @Override
+        protected int tryAcquireShared(final int acquires) {
 
-	/**
-	 * Returns a string identifying this latch, as well as its state: open or
-	 * closed.
-	 * 
-	 * @return a string identifying this latch, as well as its state
-	 */
-	@Override
-	public String toString() {
-		return super.toString() + "[" + (isOpen() ? "open" : "closed") + "]";
-	}
+            // if acquires is 0, this is a test only not an acquisition attempt
+            if(acquires == 0) {
 
-	/**
-	 * Waits for the gate to open. If this returns without an exception, the
-	 * gate is open.
-	 */
-	public void waitUntilOpen() throws InterruptedException {
-		sync.acquireSharedInterruptibly(0);
-	}
-	/**
-	 * Waits for the gate to open.
-	 * 
-	 * @return true if the gate is now open, false if the timeout was reached
-	 */
-	public boolean waitUntilOpen(final long timeout, final TimeUnit unit)
-			throws InterruptedException {
-		return sync.tryAcquireSharedNanos(0, unit.toNanos(timeout));
-	}
+                // if open, thread can proceed right away
+                // if closed, thread needs to wait
+                // this is a fake out since lock is not actually obtained
+                return isOpen() ? 1 : -1;
+            }
+
+            // if acquires is 1, this is an acquisition attempt
+            // close gate even if it's already closed
+            setState(1);
+            return 1;
+        }
+    }
 }

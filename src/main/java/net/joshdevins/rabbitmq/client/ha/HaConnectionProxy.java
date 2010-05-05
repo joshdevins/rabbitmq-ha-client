@@ -1,3 +1,19 @@
+/*
+ * Copyright 2010 Josh Devins
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.joshdevins.rabbitmq.client.ha;
 
 import java.io.IOException;
@@ -17,125 +33,125 @@ import com.rabbitmq.client.Address;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 
+/**
+ * A proxy around the standard {@link Connection}.
+ * 
+ * @author Josh Devins
+ */
 public class HaConnectionProxy implements InvocationHandler {
 
-	private static final Logger LOG = Logger.getLogger(HaConnectionProxy.class);
+    private static final Logger LOG = Logger.getLogger(HaConnectionProxy.class);
 
-	private static Method CREATE_CHANNEL_METHOD;
+    private static Method CREATE_CHANNEL_METHOD;
 
-	private static Method CREATE_CHANNEL_INT_METHOD;
+    private static Method CREATE_CHANNEL_INT_METHOD;
 
-	private final Address[] addrs;
+    private final Address[] addrs;
 
-	private final Integer maxRedirects;
+    private final Integer maxRedirects;
 
-	private Connection target;
+    private Connection target;
 
-	private final Set<HaChannelProxy> channelProxies;
+    private final Set<HaChannelProxy> channelProxies;
 
-	private final RetryStrategy retryStrategy;
+    private final RetryStrategy retryStrategy;
 
-	public HaConnectionProxy(final Address[] addrs, final Integer maxRedirects,
-			final Connection target, final RetryStrategy retryStrategy) {
+    static {
 
-		assert addrs != null;
-		assert addrs.length > 0;
-		assert retryStrategy != null;
+        // initialize static fields or fail fast
+        try {
+            CREATE_CHANNEL_METHOD = Connection.class.getMethod("createChannel");
+            CREATE_CHANNEL_INT_METHOD = Connection.class.getMethod("createChannel", int.class);
 
-		this.target = target;
-		this.addrs = addrs;
-		this.maxRedirects = maxRedirects;
-		this.retryStrategy = retryStrategy;
+        } catch(Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-		channelProxies = new HashSet<HaChannelProxy>();
-	}
+    public HaConnectionProxy(final Address[] addrs, final Integer maxRedirects, final Connection target,
+            final RetryStrategy retryStrategy) {
 
-	public void closeConnectionLatch() {
-		for (HaChannelProxy proxy : channelProxies) {
-			proxy.closeConnectionLatch();
-		}
-	}
+        assert addrs != null;
+        assert addrs.length > 0;
+        assert retryStrategy != null;
 
-	public Address[] getAddresses() {
-		return addrs;
-	}
+        this.target = target;
+        this.addrs = addrs;
+        this.maxRedirects = maxRedirects;
+        this.retryStrategy = retryStrategy;
 
-	public Integer getMaxRedirects() {
-		return maxRedirects;
-	}
+        channelProxies = new HashSet<HaChannelProxy>();
+    }
 
-	public Object invoke(final Object proxy, final Method method,
-			final Object[] args) throws Throwable {
+    public void closeConnectionLatch() {
+        for(HaChannelProxy proxy : channelProxies) {
+            proxy.closeConnectionLatch();
+        }
+    }
 
-		// intercept calls to create a channel
-		if (method.equals(CREATE_CHANNEL_METHOD)
-				|| method.equals(CREATE_CHANNEL_INT_METHOD)) {
+    public Address[] getAddresses() {
+        return addrs;
+    }
 
-			return createChannelAndWrapWithProxy(method, args);
-		}
+    public Integer getMaxRedirects() {
+        return maxRedirects;
+    }
 
-		// delegate all other method invocations
-		return InvocationHandlerUtils.delegateMethodInvocation(method, args,
-				target);
-	}
+    public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
-	public void reconnect() {
-		target.abort(AMQP.CHANNEL_ERROR, "reconnect");
-	}
+        // intercept calls to create a channel
+        if(method.equals(CREATE_CHANNEL_METHOD) || method.equals(CREATE_CHANNEL_INT_METHOD)) {
 
-	protected Channel createChannelAndWrapWithProxy(final Method method,
-			final Object[] args) throws IllegalArgumentException,
-			IllegalAccessException, InvocationTargetException {
+            return createChannelAndWrapWithProxy(method, args);
+        }
 
-		Channel targetChannel = (Channel) method.invoke(target, args);
+        // delegate all other method invocations
+        return InvocationHandlerUtils.delegateMethodInvocation(method, args, target);
+    }
 
-		ClassLoader classLoader = Connection.class.getClassLoader();
-		Class<?>[] interfaces = {Channel.class};
+    public void reconnect() {
+        target.abort(AMQP.CHANNEL_ERROR, "reconnect");
+    }
 
-		// create the proxy and add to the set of channels we have created
-		HaChannelProxy proxy = new HaChannelProxy(targetChannel, retryStrategy);
+    protected Channel createChannelAndWrapWithProxy(final Method method, final Object[] args)
+            throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
 
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Creating channel proxy: " + targetChannel.toString());
-		}
+        Channel targetChannel = (Channel) method.invoke(target, args);
 
-		// save the channel number-to-proxy relationship to be replaced later
-		synchronized (channelProxies) {
-			channelProxies.add(proxy);
-		}
+        ClassLoader classLoader = Connection.class.getClassLoader();
+        Class<?>[] interfaces = { Channel.class };
 
-		return (Channel) Proxy.newProxyInstance(classLoader, interfaces, proxy);
-	}
+        // create the proxy and add to the set of channels we have created
+        HaChannelProxy proxy = new HaChannelProxy(targetChannel, retryStrategy);
 
-	protected void replaceChannelsInProxies() throws IOException {
+        if(LOG.isDebugEnabled()) {
+            LOG.debug("Creating channel proxy: " + targetChannel.toString());
+        }
 
-		synchronized (channelProxies) {
+        // save the channel number-to-proxy relationship to be replaced later
+        synchronized(channelProxies) {
+            channelProxies.add(proxy);
+        }
 
-			for (HaChannelProxy proxy : channelProxies) {
+        return (Channel) Proxy.newProxyInstance(classLoader, interfaces, proxy);
+    }
 
-				// replace dead channel with a new one using the same ID
-				int channelNumber = proxy.getTargetChannel().getChannelNumber();
-				proxy.setTargetChannel(target.createChannel(channelNumber));
-			}
-		}
-	}
+    protected void replaceChannelsInProxies() throws IOException {
 
-	protected void setTargetConnection(final Connection target) {
+        synchronized(channelProxies) {
 
-		assert target != null;
-		this.target = target;
-	}
+            for(HaChannelProxy proxy : channelProxies) {
 
-	static {
+                // replace dead channel with a new one using the same ID
+                int channelNumber = proxy.getTargetChannel().getChannelNumber();
+                proxy.setTargetChannel(target.createChannel(channelNumber));
+            }
+        }
+    }
 
-		// initialize static fields or fail fast
-		try {
-			CREATE_CHANNEL_METHOD = Connection.class.getMethod("createChannel");
-			CREATE_CHANNEL_INT_METHOD = Connection.class.getMethod(
-					"createChannel", int.class);
+    protected void setTargetConnection(final Connection target) {
 
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-	}
+        assert target != null;
+        this.target = target;
+    }
 }

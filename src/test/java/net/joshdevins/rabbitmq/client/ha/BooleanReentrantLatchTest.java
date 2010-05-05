@@ -1,3 +1,19 @@
+/*
+ * Copyright 2010 Josh Devins
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.joshdevins.rabbitmq.client.ha;
 
 import java.util.Date;
@@ -16,177 +32,174 @@ import org.junit.Test;
 
 public class BooleanReentrantLatchTest {
 
-	private class TestCallable implements Callable<Long> {
+    private static final int NUM_REPETITIONS = 3;
 
-		public Long call() throws Exception {
+    private BooleanReentrantLatch latch;
 
-			try {
+    private long startTime;
 
-				long startTime = new Date().getTime();
-				latch.waitUntilOpen();
-				return new Date().getTime() - startTime;
+    @Test
+    public void basicInitialStateTest_Closed() {
 
-			} catch (InterruptedException ie) {
-				return new Long(-1);
-			}
-		}
-	}
+        latch = new BooleanReentrantLatch(false);
+        BooleanReentrantLatch localLatch = new BooleanReentrantLatch(false);
 
-	private static final int NUM_REPETITIONS = 3;
+        Assert.assertEquals(latch, localLatch);
 
-	private BooleanReentrantLatch latch;
+        Assert.assertFalse(localLatch.isOpen());
+        Assert.assertTrue(localLatch.isClosed());
+    }
 
-	private long startTime;
+    @Test
+    public void basicInitialStateTest_Open() {
 
-	@Test
-	public void basicInitialStateTest_Closed() {
+        BooleanReentrantLatch localLatch = new BooleanReentrantLatch(true);
 
-		latch = new BooleanReentrantLatch(false);
-		BooleanReentrantLatch localLatch = new BooleanReentrantLatch(false);
+        Assert.assertEquals(latch, localLatch);
 
-		Assert.assertEquals(latch, localLatch);
+        Assert.assertTrue(localLatch.isOpen());
+        Assert.assertFalse(localLatch.isClosed());
+    }
 
-		Assert.assertFalse(localLatch.isOpen());
-		Assert.assertTrue(localLatch.isClosed());
-	}
+    @Test
+    public void basicRepeatedCloseTest() {
 
-	@Test
-	public void basicInitialStateTest_Open() {
+        latch = new BooleanReentrantLatch(false);
+        Assert.assertTrue(latch.isClosed());
 
-		BooleanReentrantLatch localLatch = new BooleanReentrantLatch(true);
+        for(int i = 0; i < NUM_REPETITIONS; i++) {
+            latch.close();
+            Assert.assertTrue(latch.isClosed());
+        }
+    }
 
-		Assert.assertEquals(latch, localLatch);
+    @Test
+    public void basicRepeatedCloseThenOpenTest() {
 
-		Assert.assertTrue(localLatch.isOpen());
-		Assert.assertFalse(localLatch.isClosed());
-	}
+        for(int i = 0; i < NUM_REPETITIONS; i++) {
 
-	@Test
-	public void basicRepeatedCloseTest() {
+            Assert.assertTrue(latch.isOpen());
 
-		latch = new BooleanReentrantLatch(false);
-		Assert.assertTrue(latch.isClosed());
+            latch.close();
+            Assert.assertTrue(latch.isClosed());
 
-		for (int i = 0; i < NUM_REPETITIONS; i++) {
-			latch.close();
-			Assert.assertTrue(latch.isClosed());
-		}
-	}
+            latch.open();
+        }
+    }
 
-	@Test
-	public void basicRepeatedCloseThenOpenTest() {
+    @Test
+    public void basicRepeatedOpenTest() {
 
-		for (int i = 0; i < NUM_REPETITIONS; i++) {
+        Assert.assertTrue(latch.isOpen());
 
-			Assert.assertTrue(latch.isOpen());
+        for(int i = 0; i < NUM_REPETITIONS; i++) {
+            latch.open();
+            Assert.assertTrue(latch.isOpen());
+        }
+    }
 
-			latch.close();
-			Assert.assertTrue(latch.isClosed());
+    @Test
+    public void basicWaitOnOpenLatchTest() throws InterruptedException {
 
-			latch.open();
-		}
-	}
+        setStartTime();
+        latch.waitUntilOpen();
 
-	@Test
-	public void basicRepeatedOpenTest() {
+        // should return right away
+        assertTimeLapsed();
+    }
 
-		Assert.assertTrue(latch.isOpen());
+    @Test
+    public void basicWaitOnOpenLatchTest_WithTimeout() throws InterruptedException {
 
-		for (int i = 0; i < NUM_REPETITIONS; i++) {
-			latch.open();
-			Assert.assertTrue(latch.isOpen());
-		}
-	}
+        setStartTime();
+        latch.waitUntilOpen(1000, TimeUnit.MILLISECONDS);
 
-	@Test
-	public void basicWaitOnOpenLatchTest() throws InterruptedException {
+        // should return right away
+        assertTimeLapsed();
+    }
 
-		setStartTime();
-		latch.waitUntilOpen();
+    @Before
+    public void before() {
+        latch = new BooleanReentrantLatch();
+    }
 
-		// should return right away
-		assertTimeLapsed();
-	}
+    @Test
+    public void concurrentRepeatedWaitOnClosedLatchTest() throws InterruptedException, ExecutionException {
 
-	@Test
-	public void basicWaitOnOpenLatchTest_WithTimeout()
-			throws InterruptedException {
+        int numTestCallables = 10;
 
-		setStartTime();
-		latch.waitUntilOpen(1000, TimeUnit.MILLISECONDS);
+        TestCallable[] testCallables = new TestCallable[numTestCallables];
+        for(int i = 0; i < numTestCallables; i++) {
+            testCallables[i] = new TestCallable();
+        }
 
-		// should return right away
-		assertTimeLapsed();
-	}
+        ExecutorService service = Executors.newFixedThreadPool(numTestCallables);
 
-	@Before
-	public void before() {
-		latch = new BooleanReentrantLatch();
-	}
+        for(int i = 0; i < NUM_REPETITIONS; i++) {
 
-	@Test
-	public void concurrentRepeatedWaitOnClosedLatchTest()
-			throws InterruptedException, ExecutionException {
+            latch.close();
 
-		int numTestCallables = 10;
+            List<Future<Long>> futures = new LinkedList<Future<Long>>();
+            for(int j = 0; j < numTestCallables; j++) {
+                futures.add(service.submit(testCallables[j]));
+            }
 
-		TestCallable[] testCallables = new TestCallable[numTestCallables];
-		for (int i = 0; i < numTestCallables; i++) {
-			testCallables[i] = new TestCallable();
-		}
+            for(Future<Long> future : futures) {
 
-		ExecutorService service = Executors
-				.newFixedThreadPool(numTestCallables);
+                // threads are not finished
+                Assert.assertFalse(future.isDone());
+                Assert.assertFalse(future.isCancelled());
+            }
 
-		for (int i = 0; i < NUM_REPETITIONS; i++) {
+            latch.open();
 
-			latch.close();
+            // FIXME: This is fraught with peril, I know
+            // wait a sec before testing the state
+            Thread.sleep(100);
 
-			List<Future<Long>> futures = new LinkedList<Future<Long>>();
-			for (int j = 0; j < numTestCallables; j++) {
-				futures.add(service.submit(testCallables[j]));
-			}
+            for(Future<Long> future : futures) {
 
-			for (Future<Long> future : futures) {
+                // threads are finished
+                Assert.assertTrue(future.isDone());
+                Assert.assertFalse(future.isCancelled());
 
-				// threads are not finished
-				Assert.assertFalse(future.isDone());
-				Assert.assertFalse(future.isCancelled());
-			}
+                // not interrupted
+                Assert.assertNotSame(new Long(-1), future.get());
 
-			latch.open();
+                // within time frame
+                Assert.assertTrue(future.get() < 100);
+            }
+        }
+    }
 
-			// FIXME: This is fraught with peril, I know
-			// wait a sec before testing the state
-			Thread.sleep(100);
+    private void assertTimeLapsed() {
+        assertTimeLapsed(100);
+    }
 
-			for (Future<Long> future : futures) {
+    private void assertTimeLapsed(final long acceptedInterval) {
 
-				// threads are finished
-				Assert.assertTrue(future.isDone());
-				Assert.assertFalse(future.isCancelled());
+        // FIXME: This seems suspect, but not sure how else to judge time
+        long endTime = new Date().getTime();
+        Assert.assertTrue(startTime - endTime <= acceptedInterval);
+    }
 
-				// not interrupted
-				Assert.assertNotSame(new Long(-1), future.get());
+    private void setStartTime() {
+        startTime = new Date().getTime();
+    }
 
-				// within time frame
-				Assert.assertTrue(future.get() < 100);
-			}
-		}
-	}
+    private class TestCallable implements Callable<Long> {
 
-	private void assertTimeLapsed() {
-		assertTimeLapsed(100);
-	}
+        public Long call() throws Exception {
 
-	private void assertTimeLapsed(final long acceptedInterval) {
+            try {
 
-		// FIXME: This seems suspect, but not sure how else to judge time
-		long endTime = new Date().getTime();
-		Assert.assertTrue(startTime - endTime <= acceptedInterval);
-	}
+                long startTime = new Date().getTime();
+                latch.waitUntilOpen();
+                return new Date().getTime() - startTime;
 
-	private void setStartTime() {
-		startTime = new Date().getTime();
-	}
+            } catch(InterruptedException ie) {
+                return new Long(-1);
+            }
+        }
+    }
 }

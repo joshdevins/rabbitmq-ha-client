@@ -8,7 +8,7 @@ package net.joshdevins.rabbitmq.client.ha;
 public class NoRetryStrategy implements RetryStrategy {
 
 	public boolean shouldRetry(final Exception e,
-			final int numOperationInvocations, final BooleanGate connectionGate) {
+			final int numOperationInvocations, final BooleanReentrantLatch connectionGate) {
 		return false;
 	}
 }

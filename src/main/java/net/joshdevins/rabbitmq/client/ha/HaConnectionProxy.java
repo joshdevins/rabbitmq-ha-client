@@ -44,9 +44,9 @@ public class HaConnectionProxy implements InvocationHandler {
 		channelProxies = new HashSet<HaChannelProxy>();
 	}
 
-	public void closeConnectionGate() {
+	public void closeConnectionLatch() {
 		for (HaChannelProxy proxy : channelProxies) {
-			proxy.closeConnectionGate();
+			proxy.closeConnectionLatch();
 		}
 	}
 

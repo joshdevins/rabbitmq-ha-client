@@ -17,7 +17,7 @@ public class HaChannelProxy implements InvocationHandler {
 
 	private final RetryStrategy retryStrategy;
 
-	private final BooleanGate connectionGate;
+	private final BooleanReentrantLatch connectionLatch;
 
 	public HaChannelProxy(final Channel target,
 			final RetryStrategy retryStrategy) {
@@ -28,11 +28,11 @@ public class HaChannelProxy implements InvocationHandler {
 		this.target = target;
 		this.retryStrategy = retryStrategy;
 
-		connectionGate = new BooleanGate();
+		connectionLatch = new BooleanReentrantLatch();
 	}
 
-	public void closeConnectionGate() {
-		connectionGate.close();
+	public void closeConnectionLatch() {
+		connectionLatch.close();
 	}
 
 	public Object invoke(final Object proxy, final Method method,
@@ -69,7 +69,7 @@ public class HaChannelProxy implements InvocationHandler {
 			// only keep on invoking if error is recoverable
 			if (shutdownRecoverable) {
 				keepOnInvoking = retryStrategy.shouldRetry(lastException,
-						numOperationInvocations, connectionGate);
+						numOperationInvocations, connectionLatch);
 			}
 		}
 
@@ -92,7 +92,7 @@ public class HaChannelProxy implements InvocationHandler {
 	}
 
 	protected void markAsClosed() {
-		connectionGate.close();
+		connectionLatch.close();
 	}
 
 	protected void setTargetChannel(final Channel target) {
@@ -114,6 +114,6 @@ public class HaChannelProxy implements InvocationHandler {
 			}
 		}
 
-		connectionGate.open();
+		connectionLatch.open();
 	}
 }

@@ -47,7 +47,7 @@ public class SimpleRetryStrategy implements RetryStrategy {
 	}
 
 	public boolean shouldRetry(final Exception e,
-			final int numOperationInvocations, final BooleanGate connectionGate) {
+			final int numOperationInvocations, final BooleanReentrantLatch connectionGate) {
 
 		if (LOG.isDebugEnabled()) {
 			LOG

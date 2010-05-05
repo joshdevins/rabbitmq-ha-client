@@ -38,5 +38,5 @@ public interface RetryStrategy {
 	 *         false if we should fail and rethrow the {@link IOException}
 	 */
 	public boolean shouldRetry(Exception e, int numOperationInvocations,
-			BooleanGate connectionGate);
+			BooleanReentrantLatch connectionGate);
 }

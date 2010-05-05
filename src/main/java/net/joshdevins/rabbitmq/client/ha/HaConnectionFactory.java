@@ -2,6 +2,7 @@ package net.joshdevins.rabbitmq.client.ha;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.net.ConnectException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -91,7 +92,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 		public void run() {
 
 			// need to close the connection gate on the channels
-			connectionProxy.closeConnectionGate();
+			connectionProxy.closeConnectionLatch();
 
 			StringBuilder sb = new StringBuilder();
 			sb.append('[');
@@ -113,42 +114,60 @@ public class HaConnectionFactory extends ConnectionFactory {
 						+ reconnectionWaitMillis);
 			}
 
-			Thread.currentThread();
-			try {
-				Thread.sleep(reconnectionWaitMillis);
-			} catch (InterruptedException ie) {
+			// TODO: Add max reconnection attempts
+			boolean connected = false;
+			while (!connected) {
 
-				if (LOG.isDebugEnabled()) {
-					LOG
-							.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
-				}
-			}
+				Thread.currentThread();
+				try {
+					Thread.sleep(reconnectionWaitMillis);
+				} catch (InterruptedException ie) {
 
-			try {
-				Connection connection;
-				if (connectionProxy.getMaxRedirects() == null) {
-					connection = newTargetConnection(connectionProxy
-							.getKnownHosts(), 0);
-				} else {
-					connection = newTargetConnection(connectionProxy
-							.getKnownHosts(), connectionProxy.getMaxRedirects());
+					if (LOG.isDebugEnabled()) {
+						LOG
+								.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
+					}
 				}
 
-				if (LOG.isDebugEnabled()) {
-					LOG.info("Reconnection complete: addresses="
-							+ addressesAsString);
+				Exception exception = null;
+				try {
+					Connection connection;
+					if (connectionProxy.getMaxRedirects() == null) {
+						connection = newTargetConnection(connectionProxy
+								.getKnownHosts(), 0);
+					} else {
+						connection = newTargetConnection(connectionProxy
+								.getKnownHosts(), connectionProxy
+								.getMaxRedirects());
+					}
+
+					if (LOG.isDebugEnabled()) {
+						LOG.info("Reconnection complete: addresses="
+								+ addressesAsString);
+					}
+
+					connection.addShutdownListener(listener);
+
+					// refresh any channels created by previous connection
+					connectionProxy.setTargetConnection(connection);
+					connectionProxy.replaceChannelsInProxies();
+
+					connected = true;
+
+				} catch (ConnectException ce) {
+					// connection refused
+					exception = ce;
+
+				} catch (IOException ioe) {
+					// some other connection problem
+					exception = ioe;
 				}
 
-				connection.addShutdownListener(listener);
-
-				// refresh any channels created by previous connection
-				connectionProxy.setTargetConnection(connection);
-				connectionProxy.replaceChannelsInProxies();
-
-			} catch (IOException ioe) {
-				// TODO: reconnection retries!
-				LOG.warn("Failed to reconnect: addresses=" + addressesAsString,
-						ioe);
+				if (exception != null) {
+					LOG.warn("Failed to reconnect, retrying: addresses="
+							+ addressesAsString + ", message="
+							+ exception.getMessage());
+				}
 			}
 		}
 	}
@@ -157,9 +176,9 @@ public class HaConnectionFactory extends ConnectionFactory {
 			.getLogger(HaConnectionFactory.class);
 
 	/**
-	 * Default value = 10000 = 10 seconds
+	 * Default value = 1000 = 1 second
 	 */
-	private static final long DEFAULT_RECONNECTION_WAIT_MILLIS = 10000;
+	private static final long DEFAULT_RECONNECTION_WAIT_MILLIS = 1000;
 
 	private long reconnectionWaitMillis = DEFAULT_RECONNECTION_WAIT_MILLIS;
 

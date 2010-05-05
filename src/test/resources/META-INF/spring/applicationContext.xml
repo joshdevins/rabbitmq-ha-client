@@ -3,11 +3,9 @@
     xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd">
 
     <bean id="haConnectionFactory" class="net.joshdevins.rabbitmq.client.ha.HaConnectionFactory">
-        <!-- blocking strategy not up yet
         <property name="retryStrategy">
             <bean class="net.joshdevins.rabbitmq.client.ha.BlockingRetryStrategy" />
         </property>
-        -->
     </bean>
 
     <bean id="connectionFactory" class="org.springframework.amqp.rabbit.connection.CachingConnectionFactory">

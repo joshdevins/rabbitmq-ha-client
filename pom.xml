@@ -9,7 +9,7 @@
     <packaging>jar</packaging>
 
     <name>RabbitMQ HA Client</name>
-    <url>http://www.joshdevins.net</url>
+    <url>http://github.com/joshdevins/rabbitmq-ha-client</url>
 
     <dependencies>
         <dependency>

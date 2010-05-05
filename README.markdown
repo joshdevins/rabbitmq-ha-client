@@ -9,6 +9,7 @@ Work in Progress
 This is a major work in progress still! Watch this project and this page for regular updates on what has been completed and is still to be done. There is currently some reliance on Spring, although this will be refactored later for non-Spring users as well.
 
 Still to be done:
+
 * tests, waaaay more tests :)
 * refactor out Spring dependencies
 * support for blocking consumers (yes, this is currently only tested for the publisher side!)

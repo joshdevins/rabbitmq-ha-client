@@ -3,6 +3,8 @@ package net.joshdevins.rabbitmq.client.ha;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.net.ConnectException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -37,7 +39,7 @@ import com.rabbitmq.client.ShutdownSignalException;
  */
 public class HaConnectionFactory extends ConnectionFactory {
 
-	private class ConnectionPair {
+	private class ConnectionSet {
 
 		private final Connection wrapped;
 
@@ -45,8 +47,9 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 		private final HaShutdownListener listener;
 
-		private ConnectionPair(final Connection wrapped,
+		private ConnectionSet(final Connection wrapped,
 				final HaConnectionProxy proxy, final HaShutdownListener listener) {
+
 			this.wrapped = wrapped;
 			this.proxy = proxy;
 			this.listener = listener;
@@ -61,6 +64,8 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 		private final HaConnectionProxy connectionProxy;
 
+		// needs also to be able to call asyncReconnect or to create own
+		// ReconnectionTask
 		public HaShutdownListener(final HaConnectionProxy connectionProxy) {
 
 			assert connectionProxy != null;
@@ -75,9 +80,16 @@ public class HaConnectionFactory extends ConnectionFactory {
 						+ shutdownSignalException.getMessage());
 			}
 
+			for (HaConnectionListener listener : listeners) {
+				listener.onDisconnect(connectionProxy, shutdownSignalException);
+			}
+
 			// only try to reconnect if it was a problem with the broker
 			if (!shutdownSignalException.isInitiatedByApplication()) {
-				asyncReconnect(this, connectionProxy);
+
+				// start an async reconnection
+				executorService.submit(new ReconnectionTask(true, this,
+						connectionProxy));
 
 			} else {
 				if (LOG.isDebugEnabled()) {
@@ -90,16 +102,20 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 	private class ReconnectionTask implements Runnable {
 
+		private final boolean reconnection;
+
 		private final ShutdownListener listener;
 
 		private final HaConnectionProxy connectionProxy;
 
-		public ReconnectionTask(final ShutdownListener listener,
+		public ReconnectionTask(final boolean reconnection,
+				final ShutdownListener listener,
 				final HaConnectionProxy connectionProxy) {
 
 			Validate.notNull(listener, "listener is required");
 			Validate.notNull(connectionProxy, "connectionProxy is required");
 
+			this.reconnection = reconnection;
 			this.listener = listener;
 			this.connectionProxy = connectionProxy;
 		}
@@ -156,6 +172,17 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 					connected = true;
 
+					if (reconnection) {
+						for (HaConnectionListener listener : listeners) {
+							listener.onReconnection(connectionProxy);
+						}
+
+					} else {
+						for (HaConnectionListener listener : listeners) {
+							listener.onConnection(connectionProxy);
+						}
+					}
+
 				} catch (ConnectException ce) {
 					// connection refused
 					exception = ce;
@@ -169,6 +196,19 @@ public class HaConnectionFactory extends ConnectionFactory {
 					LOG.warn("Failed to reconnect, retrying: addresses="
 							+ addressesAsString + ", message="
 							+ exception.getMessage());
+
+					if (reconnection) {
+						for (HaConnectionListener listener : listeners) {
+							listener.onReconnectFailure(connectionProxy,
+									exception);
+						}
+
+					} else {
+						for (HaConnectionListener listener : listeners) {
+							listener.onConnectFailure(connectionProxy,
+									exception);
+						}
+					}
 				}
 			}
 		}
@@ -206,16 +246,22 @@ public class HaConnectionFactory extends ConnectionFactory {
 
 	private RetryStrategy retryStrategy;
 
+	private Set<HaConnectionListener> listeners;
+
 	public HaConnectionFactory() {
-		super();
-		executorService = Executors.newCachedThreadPool();
-		setDefaultRetryStrategy();
+		this(new ConnectionParameters());
 	}
 
 	public HaConnectionFactory(final ConnectionParameters params) {
 		super(params);
+
 		executorService = Executors.newCachedThreadPool();
 		setDefaultRetryStrategy();
+		listeners = new ConcurrentSkipListSet<HaConnectionListener>();
+	}
+
+	public void addHaConnectionListener(final HaConnectionListener listener) {
+		listeners.add(listener);
 	}
 
 	/**
@@ -237,7 +283,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 							+ ioe.getMessage());
 		}
 
-		ConnectionPair connectionPair = createConnectionProxy(addrs,
+		ConnectionSet connectionPair = createConnectionProxy(addrs,
 				maxRedirects, target);
 
 		// connection success
@@ -247,11 +293,25 @@ public class HaConnectionFactory extends ConnectionFactory {
 		}
 
 		// connection failed, reconnect in the same thread
-		ReconnectionTask task = new ReconnectionTask(connectionPair.listener,
-				connectionPair.proxy);
+		ReconnectionTask task = new ReconnectionTask(false,
+				connectionPair.listener, connectionPair.proxy);
 		task.run();
 
 		return connectionPair.wrapped;
+	}
+
+	/**
+	 * Allows setting a {@link Set} of {@link HaConnectionListener}s. This is
+	 * ammenable for Spring style property setting. Note that this will override
+	 * any existing listeners!
+	 */
+	public void setHaConnectionListener(
+			final Set<HaConnectionListener> listeners) {
+
+		Validate.notEmpty(listeners,
+				"listeners are required and none can be null");
+		this.listeners = new ConcurrentSkipListSet<HaConnectionListener>(
+				listeners);
 	}
 
 	/**
@@ -273,7 +333,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 	/**
 	 * Creates an {@link HaConnectionProxy} around a raw {@link Connection}.
 	 */
-	protected ConnectionPair createConnectionProxy(final Address[] addrs,
+	protected ConnectionSet createConnectionProxy(final Address[] addrs,
 			final Integer maxRedirects, final Connection targetConnection) {
 
 		ClassLoader classLoader = Connection.class.getClassLoader();
@@ -297,12 +357,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 			target.addShutdownListener(listener);
 		}
 
-		return new ConnectionPair(target, proxy, listener);
-	}
-
-	private void asyncReconnect(final ShutdownListener listener,
-			final HaConnectionProxy connectionProxy) {
-		executorService.submit(new ReconnectionTask(listener, connectionProxy));
+		return new ConnectionSet(target, proxy, listener);
 	}
 
 	private Connection newTargetConnection(final Address[] addrs,

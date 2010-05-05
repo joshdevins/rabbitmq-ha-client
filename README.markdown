@@ -6,15 +6,20 @@ Some AMQP brokers and specifically RabbitMQ do not support HA out of the box. Ra
 Work in Progress
 ----------------
 
-This is a major work in progress still! Watch this project and this page for regular updates on what has been completed and is still to be done. There is currently some reliance on Spring, although this will be refactored later for non-Spring users as well.
+This is a major work in progress still! Watch this project and this page for regular updates on what has been completed and is still to be done.
+
+Completed:
+
+* publishing messages while broker is restarting (AFTER an initial connection has been made, reconnection on initial connection/startup still pending)
 
 Still to be done:
 
 * tests, waaaay more tests :)
-* refactor out Spring dependencies
-* support for blocking consumers (yes, this is currently only tested for the publisher side!)
+* callbacks to listeners on connection events (reconnected, disconnected, etc.)
+* support for blocking consumers (yes, this is currently only tested from the publisher side!)
 * handling of ack's and transactions that need to happen after a reconnection
 * more customizability and tuning for reconnection values
+* handling of initial connection failing
 
 Usage
 -----

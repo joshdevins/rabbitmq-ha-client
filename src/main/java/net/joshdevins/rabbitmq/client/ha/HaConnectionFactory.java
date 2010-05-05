@@ -6,6 +6,9 @@ import java.net.ConnectException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import net.joshdevins.rabbitmq.client.ha.retry.BlockingRetryStrategy;
+import net.joshdevins.rabbitmq.client.ha.retry.RetryStrategy;
+
 import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
 

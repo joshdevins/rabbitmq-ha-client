@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
+import net.joshdevins.rabbitmq.client.ha.retry.RetryStrategy;
+
 import org.apache.log4j.Logger;
 
 import com.rabbitmq.client.AlreadyClosedException;

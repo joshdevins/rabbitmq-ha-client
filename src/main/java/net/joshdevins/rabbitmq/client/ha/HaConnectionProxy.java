@@ -8,6 +8,8 @@ import java.lang.reflect.Proxy;
 import java.util.HashSet;
 import java.util.Set;
 
+import net.joshdevins.rabbitmq.client.ha.retry.RetryStrategy;
+
 import org.apache.log4j.Logger;
 
 import com.rabbitmq.client.AMQP;

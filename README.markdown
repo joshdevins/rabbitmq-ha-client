@@ -13,11 +13,11 @@ Completed:
 * creating a new connection with no broker running (this blocks synchronously right now, so lazily create your connections!)
 * publishing messages after broker has gone down
 * publishing messages after broker has restarted
+* callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection
 
 Still to be done:
 
 * tests, waaaay more tests :)
-* callbacks to listeners on connection events (reconnected, disconnected, etc.)
 * support for blocking consumers (yes, this is currently only tested from the publisher side!)
 * handling of ack's and transactions that need to happen after a reconnection
 * more customizability and tuning for reconnection values

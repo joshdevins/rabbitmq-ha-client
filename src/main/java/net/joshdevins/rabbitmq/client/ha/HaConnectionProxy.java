@@ -67,9 +67,6 @@ public class HaConnectionProxy implements InvocationHandler {
 	public Object invoke(final Object proxy, final Method method,
 			final Object[] args) throws Throwable {
 
-		// TODO: Check for null? What happens when someone tries to connect
-		// before initial connection is established?
-
 		// intercept calls to create a channel
 		if (method.equals(CREATE_CHANNEL_METHOD)
 				|| method.equals(CREATE_CHANNEL_INT_METHOD)) {
@@ -90,7 +87,6 @@ public class HaConnectionProxy implements InvocationHandler {
 			final Object[] args) throws IllegalArgumentException,
 			IllegalAccessException, InvocationTargetException {
 
-		// FIXME: target can be null still
 		Channel targetChannel = (Channel) method.invoke(target, args);
 
 		ClassLoader classLoader = Connection.class.getClassLoader();

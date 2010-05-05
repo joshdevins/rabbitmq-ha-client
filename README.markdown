@@ -10,7 +10,9 @@ This is a major work in progress still! Watch this project and this page for reg
 
 Completed:
 
-* publishing messages while broker is restarting (AFTER an initial connection has been made, reconnection on initial connection/startup still pending)
+* creating a new connection with no broker running (this blocks synchronously right now, so lazily create your connections!)
+* publishing messages after broker has gone down
+* publishing messages after broker has restarted
 
 Still to be done:
 
@@ -19,7 +21,6 @@ Still to be done:
 * support for blocking consumers (yes, this is currently only tested from the publisher side!)
 * handling of ack's and transactions that need to happen after a reconnection
 * more customizability and tuning for reconnection values
-* handling of initial connection failing
 
 Usage
 -----

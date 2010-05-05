@@ -189,11 +189,13 @@ public class HaConnectionFactory extends ConnectionFactory {
 	public HaConnectionFactory() {
 		super();
 		executorService = Executors.newCachedThreadPool();
+		setDefaultRetryStrategy();
 	}
 
 	public HaConnectionFactory(final ConnectionParameters params) {
 		super(params);
 		executorService = Executors.newCachedThreadPool();
+		setDefaultRetryStrategy();
 	}
 
 	/**
@@ -259,5 +261,9 @@ public class HaConnectionFactory extends ConnectionFactory {
 			final int maxRedirects) throws IOException {
 
 		return super.newConnection(addrs, maxRedirects);
+	}
+
+	private void setDefaultRetryStrategy() {
+		retryStrategy = new BlockingRetryStrategy();
 	}
 }

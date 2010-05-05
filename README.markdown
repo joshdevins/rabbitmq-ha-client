@@ -3,10 +3,24 @@ RabbitMQ HA Client
 
 Some AMQP brokers and specifically RabbitMQ do not support HA out of the box. Rationale for this varies as much as peoples' requirements do, so it's not super surprising that this is the case. However there are basic HA possibilities with RabbitMQ, specifically active-passive brokers using [Pacemaker](http://www.rabbitmq.com/pacemaker.html) or behind a plain old TCP load balancer. For a better description of the latter scenario, please read the [blog post](http://www.joshdevins.net/2010/04/16/rabbitmq-ha-testing-with-haproxy) that started this project. Suffice it to say that in order to make this and many HA topologies work, a client that can do automatic, graceful connection recovery and message redelivery is required. Bonus points of course if you can auto-magically de-duplicate messages in the consumer as is done in [Beetle](http://github.com/xing/beetle) (TBD in this project).
 
+Work in Progress
+----------------
+
+This is a major work in progress still! Watch this project and this page for regular updates on what has been completed and is still to be done. There is currently some reliance on Spring, although this will be refactored later for non-Spring users as well.
+
+Still to be done:
+* tests, waaaay more tests :)
+* refactor out Spring dependencies
+* support for blocking consumers (yes, this is currently only tested for the publisher side!)
+* handling of ack's and transactions that need to happen after a reconnection
+* more customizability and tuning for reconnection values
+
 Usage
 -----
 
-Coming soon...
+Basically this is a drop-in replacement for the standard RabbitMQ ConnectionFactory. Anything that uses that should be able to use the HaConnectionFactory instead. Be certain to review the retry strategies (there are some built-in) if you want custom behaviour on channel failures.
+
+More details to come soon...
 
 License
 -------

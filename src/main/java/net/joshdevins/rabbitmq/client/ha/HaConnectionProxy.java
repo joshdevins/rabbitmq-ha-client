@@ -25,6 +25,8 @@ public class HaConnectionProxy implements InvocationHandler {
 
 	private static Method CREATE_CHANNEL_INT_METHOD;
 
+	private final Address[] addrs;
+
 	private final Integer maxRedirects;
 
 	private Connection target;
@@ -33,13 +35,15 @@ public class HaConnectionProxy implements InvocationHandler {
 
 	private final RetryStrategy retryStrategy;
 
-	public HaConnectionProxy(final Integer maxRedirects,
+	public HaConnectionProxy(final Address[] addrs, final Integer maxRedirects,
 			final Connection target, final RetryStrategy retryStrategy) {
 
-		assert target != null;
+		assert addrs != null;
+		assert addrs.length > 0;
 		assert retryStrategy != null;
 
 		this.target = target;
+		this.addrs = addrs;
 		this.maxRedirects = maxRedirects;
 		this.retryStrategy = retryStrategy;
 
@@ -52,8 +56,8 @@ public class HaConnectionProxy implements InvocationHandler {
 		}
 	}
 
-	public Address[] getKnownHosts() {
-		return target.getKnownHosts();
+	public Address[] getAddresses() {
+		return addrs;
 	}
 
 	public Integer getMaxRedirects() {
@@ -62,6 +66,9 @@ public class HaConnectionProxy implements InvocationHandler {
 
 	public Object invoke(final Object proxy, final Method method,
 			final Object[] args) throws Throwable {
+
+		// TODO: Check for null? What happens when someone tries to connect
+		// before initial connection is established?
 
 		// intercept calls to create a channel
 		if (method.equals(CREATE_CHANNEL_METHOD)
@@ -83,6 +90,7 @@ public class HaConnectionProxy implements InvocationHandler {
 			final Object[] args) throws IllegalArgumentException,
 			IllegalAccessException, InvocationTargetException {
 
+		// FIXME: target can be null still
 		Channel targetChannel = (Channel) method.invoke(target, args);
 
 		ClassLoader classLoader = Connection.class.getClassLoader();

@@ -20,6 +20,7 @@ Still to be done:
 * tests, waaaay more tests :)
 * support for blocking consumers (yes, this is currently only tested from the publisher side!)
 * handling of ack's and transactions that need to happen after a reconnection
+* hook in message receipt path to do message deduplication 
 * more customizability and tuning for reconnection values
 
 Usage

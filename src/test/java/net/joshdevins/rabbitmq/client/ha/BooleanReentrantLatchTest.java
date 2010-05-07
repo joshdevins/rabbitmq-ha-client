@@ -32,6 +32,22 @@ import org.junit.Test;
 
 public class BooleanReentrantLatchTest {
 
+    private class TestCallable implements Callable<Long> {
+
+        public Long call() throws Exception {
+
+            try {
+
+                long startTime = new Date().getTime();
+                latch.waitUntilOpen();
+                return new Date().getTime() - startTime;
+
+            } catch(InterruptedException ie) {
+                return new Long(-1);
+            }
+        }
+    }
+
     private static final int NUM_REPETITIONS = 3;
 
     private BooleanReentrantLatch latch;
@@ -185,21 +201,5 @@ public class BooleanReentrantLatchTest {
 
     private void setStartTime() {
         startTime = new Date().getTime();
-    }
-
-    private class TestCallable implements Callable<Long> {
-
-        public Long call() throws Exception {
-
-            try {
-
-                long startTime = new Date().getTime();
-                latch.waitUntilOpen();
-                return new Date().getTime() - startTime;
-
-            } catch(InterruptedException ie) {
-                return new Long(-1);
-            }
-        }
     }
 }

@@ -26,6 +26,52 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
  */
 public class BooleanReentrantLatch {
 
+    /**
+     * Synchronization control for {@link BooleanReentrantLatch}. Uses {@link AbstractQueuedSynchronizer} state to
+     * represent gate state.
+     * 
+     * <p>
+     * states: open == 0, closed == 1
+     * </p>
+     */
+    private static final class Sync extends AbstractQueuedSynchronizer {
+
+        private static final long serialVersionUID = -7271227048279204885L;
+
+        protected Sync(final boolean open) {
+            setState(open ? 0 : 1);
+        }
+
+        @Override
+        public boolean tryReleaseShared(final int releases) {
+
+            // only open gate if it's currently closed (atomically)
+            return compareAndSetState(1, 0);
+        }
+
+        protected boolean isOpen() {
+            return getState() == 0;
+        }
+
+        @Override
+        protected int tryAcquireShared(final int acquires) {
+
+            // if acquires is 0, this is a test only not an acquisition attempt
+            if(acquires == 0) {
+
+                // if open, thread can proceed right away
+                // if closed, thread needs to wait
+                // this is a fake out since lock is not actually obtained
+                return isOpen() ? 1 : -1;
+            }
+
+            // if acquires is 1, this is an acquisition attempt
+            // close gate even if it's already closed
+            setState(1);
+            return 1;
+        }
+    }
+
     private final Sync sync;
 
     public BooleanReentrantLatch() {
@@ -99,51 +145,5 @@ public class BooleanReentrantLatch {
      */
     public boolean waitUntilOpen(final long timeout, final TimeUnit unit) throws InterruptedException {
         return sync.tryAcquireSharedNanos(0, unit.toNanos(timeout));
-    }
-
-    /**
-     * Synchronization control for {@link BooleanReentrantLatch}. Uses {@link AbstractQueuedSynchronizer} state to
-     * represent gate state.
-     * 
-     * <p>
-     * states: open == 0, closed == 1
-     * </p>
-     */
-    private static final class Sync extends AbstractQueuedSynchronizer {
-
-        private static final long serialVersionUID = -7271227048279204885L;
-
-        protected Sync(final boolean open) {
-            setState(open ? 0 : 1);
-        }
-
-        @Override
-        public boolean tryReleaseShared(final int releases) {
-
-            // only open gate if it's currently closed (atomically)
-            return compareAndSetState(1, 0);
-        }
-
-        protected boolean isOpen() {
-            return getState() == 0;
-        }
-
-        @Override
-        protected int tryAcquireShared(final int acquires) {
-
-            // if acquires is 0, this is a test only not an acquisition attempt
-            if(acquires == 0) {
-
-                // if open, thread can proceed right away
-                // if closed, thread needs to wait
-                // this is a fake out since lock is not actually obtained
-                return isOpen() ? 1 : -1;
-            }
-
-            // if acquires is 1, this is an acquisition attempt
-            // close gate even if it's already closed
-            setState(1);
-            return 1;
-        }
     }
 }

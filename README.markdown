@@ -15,10 +15,15 @@ Completed:
 * publishing messages after broker has restarted
 * callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection
 
+Working on:
+
+* support for blocking consumers (yes, this is currently only tested from the publisher side!)
+* always adding tests of course
+
 Still to be done:
 
 * tests, waaaay more tests :)
-* support for blocking consumers (yes, this is currently only tested from the publisher side!)
+* documentation and examples, specifically what to do on connection and reconnection events (queue declaration, etc.)
 * handling of ack's and transactions that need to happen after a reconnection
 * hook in message receipt path to do message deduplication 
 * more customizability and tuning for reconnection values

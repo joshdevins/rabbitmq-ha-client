@@ -24,6 +24,17 @@ import org.junit.Test;
 
 public class BlockingRetryStrategyTest {
 
+    private class TestRunnable implements Runnable {
+
+        private boolean shouldRetry = false;
+
+        public void run() {
+
+            // this will block until released by the other thread
+            shouldRetry = strategy.shouldRetry(new Exception("test"), 0, latch);
+        }
+    }
+
     private BooleanReentrantLatch latch;
 
     private BlockingRetryStrategy strategy;
@@ -47,16 +58,5 @@ public class BlockingRetryStrategyTest {
     public void before() {
         strategy = new BlockingRetryStrategy();
         latch = new BooleanReentrantLatch(false);
-    }
-
-    private class TestRunnable implements Runnable {
-
-        private boolean shouldRetry = false;
-
-        public void run() {
-
-            // this will block until released by the other thread
-            shouldRetry = strategy.shouldRetry(null, 0, latch);
-        }
     }
 }

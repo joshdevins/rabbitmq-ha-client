@@ -19,6 +19,7 @@ package net.joshdevins.rabbitmq.client.ha;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.net.ConnectException;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
@@ -54,6 +55,186 @@ import com.rabbitmq.client.ShutdownSignalException;
  */
 public class HaConnectionFactory extends ConnectionFactory {
 
+    private class ConnectionSet {
+
+        private final Connection wrapped;
+
+        private final HaConnectionProxy proxy;
+
+        private final HaShutdownListener listener;
+
+        private ConnectionSet(final Connection wrapped, final HaConnectionProxy proxy, final HaShutdownListener listener) {
+
+            this.wrapped = wrapped;
+            this.proxy = proxy;
+            this.listener = listener;
+        }
+    }
+
+    /**
+     * Listener to {@link Connection} shutdowns. Hooks together the {@link HaConnectionProxy} to the shutdown event.
+     */
+    private class HaShutdownListener implements ShutdownListener {
+
+        private final HaConnectionProxy connectionProxy;
+
+        // needs also to be able to call asyncReconnect or to create own
+        // ReconnectionTask
+        public HaShutdownListener(final HaConnectionProxy connectionProxy) {
+
+            assert connectionProxy != null;
+            this.connectionProxy = connectionProxy;
+        }
+
+        public void shutdownCompleted(final ShutdownSignalException shutdownSignalException) {
+
+            if(LOG.isDebugEnabled()) {
+                LOG.debug("Shutdown signal caught: " + shutdownSignalException.getMessage());
+            }
+
+            for(HaConnectionListener listener : listeners) {
+                listener.onDisconnect(connectionProxy, shutdownSignalException);
+            }
+
+            // only try to reconnect if it was a problem with the broker
+            if(!shutdownSignalException.isInitiatedByApplication()) {
+
+                // start an async reconnection
+                executorService.submit(new ReconnectionTask(true, this, connectionProxy));
+
+            } else {
+                if(LOG.isDebugEnabled()) {
+                    LOG.debug("Ignoring shutdown signal, application initiated");
+                }
+            }
+        }
+    }
+
+    private class ReconnectionTask implements Runnable {
+
+        private final boolean reconnection;
+
+        private final ShutdownListener shutdownListener;
+
+        private final HaConnectionProxy connectionProxy;
+
+        public ReconnectionTask(final boolean reconnection, final ShutdownListener shutdownListener,
+                final HaConnectionProxy connectionProxy) {
+
+            Validate.notNull(shutdownListener, "shutdownListener is required");
+            Validate.notNull(connectionProxy, "connectionProxy is required");
+
+            this.reconnection = reconnection;
+            this.shutdownListener = shutdownListener;
+            this.connectionProxy = connectionProxy;
+        }
+
+        public void run() {
+
+            // need to close the connection gate on the channels
+            connectionProxy.closeConnectionLatch();
+
+            String addressesAsString = getAddressesAsString();
+
+            if(LOG.isDebugEnabled()) {
+                LOG.info("Reconnection starting, sleeping: addresses=" + addressesAsString + ", wait="
+                        + reconnectionWaitMillis);
+            }
+
+            // TODO: Add max reconnection attempts
+            boolean connected = false;
+            while(!connected) {
+
+                try {
+                    Thread.sleep(reconnectionWaitMillis);
+                } catch(InterruptedException ie) {
+
+                    if(LOG.isDebugEnabled()) {
+                        LOG.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
+                    }
+                }
+
+                Exception exception = null;
+                try {
+                    Connection connection;
+                    if(connectionProxy.getMaxRedirects() == null) {
+                        connection = newTargetConnection(connectionProxy.getAddresses(), 0);
+                    } else {
+                        connection = newTargetConnection(connectionProxy.getAddresses(), connectionProxy
+                                .getMaxRedirects());
+                    }
+
+                    if(LOG.isDebugEnabled()) {
+                        LOG.info("Reconnection complete: addresses=" + addressesAsString);
+                    }
+
+                    connection.addShutdownListener(shutdownListener);
+
+                    // refresh any channels created by previous connection
+                    connectionProxy.setTargetConnection(connection);
+                    connectionProxy.replaceChannelsInProxies();
+
+                    connected = true;
+
+                    if(reconnection) {
+                        for(HaConnectionListener listener : listeners) {
+                            listener.onReconnection(connectionProxy);
+                        }
+
+                    } else {
+                        for(HaConnectionListener listener : listeners) {
+                            listener.onConnection(connectionProxy);
+                        }
+                    }
+
+                    connectionProxy.markAsOpen();
+
+                } catch(ConnectException ce) {
+                    // connection refused
+                    exception = ce;
+
+                } catch(IOException ioe) {
+                    // some other connection problem
+                    exception = ioe;
+                }
+
+                if(exception != null) {
+                    LOG.warn("Failed to reconnect, retrying: addresses=" + addressesAsString + ", message="
+                            + exception.getMessage());
+
+                    if(reconnection) {
+                        for(HaConnectionListener listener : listeners) {
+                            listener.onReconnectFailure(connectionProxy, exception);
+                        }
+
+                    } else {
+                        for(HaConnectionListener listener : listeners) {
+                            listener.onConnectFailure(connectionProxy, exception);
+                        }
+                    }
+                }
+            }
+        }
+
+        private String getAddressesAsString() {
+
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+
+            for(int i = 0; i < connectionProxy.getAddresses().length; i++) {
+
+                if(i > 0) {
+                    sb.append(',');
+                }
+
+                sb.append(connectionProxy.getAddresses()[i].toString());
+            }
+
+            sb.append(']');
+            return sb.toString();
+        }
+    }
+
     private static final Logger LOG = Logger.getLogger(HaConnectionFactory.class);
 
     /**
@@ -78,7 +259,9 @@ public class HaConnectionFactory extends ConnectionFactory {
 
         executorService = Executors.newCachedThreadPool();
         setDefaultRetryStrategy();
-        listeners = new ConcurrentSkipListSet<HaConnectionListener>();
+
+        // TODO: Should we use a concurrent instance or sync access to this Set?
+        listeners = new HashSet<HaConnectionListener>();
     }
 
     public void addHaConnectionListener(final HaConnectionListener listener) {
@@ -143,14 +326,6 @@ public class HaConnectionFactory extends ConnectionFactory {
         this.retryStrategy = retryStrategy;
     }
 
-    private Connection newTargetConnection(final Address[] addrs, final int maxRedirects) throws IOException {
-        return super.newConnection(addrs, maxRedirects);
-    }
-
-    private void setDefaultRetryStrategy() {
-        retryStrategy = new BlockingRetryStrategy();
-    }
-
     /**
      * Creates an {@link HaConnectionProxy} around a raw {@link Connection}.
      */
@@ -175,181 +350,11 @@ public class HaConnectionFactory extends ConnectionFactory {
         return new ConnectionSet(target, proxy, listener);
     }
 
-    private class ConnectionSet {
-
-        private final Connection wrapped;
-
-        private final HaConnectionProxy proxy;
-
-        private final HaShutdownListener listener;
-
-        private ConnectionSet(final Connection wrapped, final HaConnectionProxy proxy, final HaShutdownListener listener) {
-
-            this.wrapped = wrapped;
-            this.proxy = proxy;
-            this.listener = listener;
-        }
+    private Connection newTargetConnection(final Address[] addrs, final int maxRedirects) throws IOException {
+        return super.newConnection(addrs, maxRedirects);
     }
 
-    /**
-     * Listener to {@link Connection} shutdowns. Hooks together the {@link HaConnectionProxy} to the shutdown event.
-     */
-    private class HaShutdownListener implements ShutdownListener {
-
-        private final HaConnectionProxy connectionProxy;
-
-        // needs also to be able to call asyncReconnect or to create own
-        // ReconnectionTask
-        public HaShutdownListener(final HaConnectionProxy connectionProxy) {
-
-            assert connectionProxy != null;
-            this.connectionProxy = connectionProxy;
-        }
-
-        public void shutdownCompleted(final ShutdownSignalException shutdownSignalException) {
-
-            if(LOG.isDebugEnabled()) {
-                LOG.debug("Shutdown signal caught: " + shutdownSignalException.getMessage());
-            }
-
-            for(HaConnectionListener listener : listeners) {
-                listener.onDisconnect(connectionProxy, shutdownSignalException);
-            }
-
-            // only try to reconnect if it was a problem with the broker
-            if(!shutdownSignalException.isInitiatedByApplication()) {
-
-                // start an async reconnection
-                executorService.submit(new ReconnectionTask(true, this, connectionProxy));
-
-            } else {
-                if(LOG.isDebugEnabled()) {
-                    LOG.debug("Ignoring shutdown signal, application initiated");
-                }
-            }
-        }
-    }
-
-    private class ReconnectionTask implements Runnable {
-
-        private final boolean reconnection;
-
-        private final ShutdownListener listener;
-
-        private final HaConnectionProxy connectionProxy;
-
-        public ReconnectionTask(final boolean reconnection, final ShutdownListener listener,
-                final HaConnectionProxy connectionProxy) {
-
-            Validate.notNull(listener, "listener is required");
-            Validate.notNull(connectionProxy, "connectionProxy is required");
-
-            this.reconnection = reconnection;
-            this.listener = listener;
-            this.connectionProxy = connectionProxy;
-        }
-
-        public void run() {
-
-            // need to close the connection gate on the channels
-            connectionProxy.closeConnectionLatch();
-
-            String addressesAsString = getAddressesAsString();
-
-            if(LOG.isDebugEnabled()) {
-                LOG.info("Reconnection starting, sleeping: addresses=" + addressesAsString + ", wait="
-                        + reconnectionWaitMillis);
-            }
-
-            // TODO: Add max reconnection attempts
-            boolean connected = false;
-            while(!connected) {
-
-                try {
-                    Thread.sleep(reconnectionWaitMillis);
-                } catch(InterruptedException ie) {
-
-                    if(LOG.isDebugEnabled()) {
-                        LOG.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
-                    }
-                }
-
-                Exception exception = null;
-                try {
-                    Connection connection;
-                    if(connectionProxy.getMaxRedirects() == null) {
-                        connection = newTargetConnection(connectionProxy.getAddresses(), 0);
-                    } else {
-                        connection = newTargetConnection(connectionProxy.getAddresses(), connectionProxy
-                                .getMaxRedirects());
-                    }
-
-                    if(LOG.isDebugEnabled()) {
-                        LOG.info("Reconnection complete: addresses=" + addressesAsString);
-                    }
-
-                    connection.addShutdownListener(listener);
-
-                    // refresh any channels created by previous connection
-                    connectionProxy.setTargetConnection(connection);
-                    connectionProxy.replaceChannelsInProxies();
-
-                    connected = true;
-
-                    if(reconnection) {
-                        for(HaConnectionListener listener : listeners) {
-                            listener.onReconnection(connectionProxy);
-                        }
-
-                    } else {
-                        for(HaConnectionListener listener : listeners) {
-                            listener.onConnection(connectionProxy);
-                        }
-                    }
-
-                } catch(ConnectException ce) {
-                    // connection refused
-                    exception = ce;
-
-                } catch(IOException ioe) {
-                    // some other connection problem
-                    exception = ioe;
-                }
-
-                if(exception != null) {
-                    LOG.warn("Failed to reconnect, retrying: addresses=" + addressesAsString + ", message="
-                            + exception.getMessage());
-
-                    if(reconnection) {
-                        for(HaConnectionListener listener : listeners) {
-                            listener.onReconnectFailure(connectionProxy, exception);
-                        }
-
-                    } else {
-                        for(HaConnectionListener listener : listeners) {
-                            listener.onConnectFailure(connectionProxy, exception);
-                        }
-                    }
-                }
-            }
-        }
-
-        private String getAddressesAsString() {
-
-            StringBuilder sb = new StringBuilder();
-            sb.append('[');
-
-            for(int i = 0; i < connectionProxy.getAddresses().length; i++) {
-
-                if(i > 0) {
-                    sb.append(',');
-                }
-
-                sb.append(connectionProxy.getAddresses()[i].toString());
-            }
-
-            sb.append(']');
-            return sb.toString();
-        }
+    private void setDefaultRetryStrategy() {
+        retryStrategy = new BlockingRetryStrategy();
     }
 }

@@ -36,13 +36,13 @@ public class BlockingRetryStrategy implements RetryStrategy {
         try {
 
             if(LOG.isDebugEnabled()) {
-                LOG.debug("Waiting for connection gate to open: no timeout");
+                LOG.debug("Waiting for connection gate to open: no timeout - " + e.getMessage());
             }
 
             connectionGate.waitUntilOpen();
 
             if(LOG.isDebugEnabled()) {
-                LOG.debug("Waited for connection gate to open: connected=true");
+                LOG.debug("Waited for connection gate to open: connected=" + connectionGate.isOpen());
             }
         } catch(InterruptedException e1) {
 

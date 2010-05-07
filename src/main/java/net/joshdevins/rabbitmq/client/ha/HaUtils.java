@@ -20,6 +20,7 @@ import java.io.EOFException;
 import java.io.IOException;
 
 import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.ShutdownSignalException;
 import com.rabbitmq.client.impl.AMQImpl;
 
@@ -30,6 +31,10 @@ import com.rabbitmq.client.impl.AMQImpl;
  */
 public final class HaUtils {
 
+    private HaUtils() {
+        // do not instantiate
+    }
+
     /**
      * Pulls out the cause of the {@link IOException} and if it is of type {@link ShutdownSignalException}, passes on to
      * {@link #isShutdownRecoverable(ShutdownSignalException)}.
@@ -37,7 +42,7 @@ public final class HaUtils {
     public static boolean isShutdownRecoverable(final IOException ioe) {
 
         if(ioe.getCause() instanceof ShutdownSignalException) {
-            return !isShutdownRecoverable((ShutdownSignalException) ioe.getCause());
+            return isShutdownRecoverable((ShutdownSignalException) ioe.getCause());
         }
 
         return true;
@@ -48,6 +53,13 @@ public final class HaUtils {
      * 
      * Straight code copy from RabbitMQ messagepatterns library v0.1.3 {@code
      * ConnectorImpl}.
+     * 
+     * <p>
+     * Changes:
+     * <ul>
+     * <li>added AlreadyClosedException as recoverable when isInitiatedByApplication == true</li>
+     * </ul>
+     * </p>
      */
     public static boolean isShutdownRecoverable(final ShutdownSignalException s) {
 
@@ -58,14 +70,13 @@ public final class HaUtils {
                 replyCode = ((AMQImpl.Connection.Close) s.getReason()).getReplyCode();
             }
 
-            return s.isInitiatedByApplication()
-                    && (replyCode == AMQP.CONNECTION_FORCED || replyCode == AMQP.INTERNAL_ERROR || s.getCause() instanceof EOFException);
+            if(s.isInitiatedByApplication()) {
+
+                return replyCode == AMQP.CONNECTION_FORCED || replyCode == AMQP.INTERNAL_ERROR
+                        || s.getCause() instanceof EOFException || s instanceof AlreadyClosedException;
+            }
         }
 
         return false;
-    }
-
-    private HaUtils() {
-        // do not instantiate
     }
 }

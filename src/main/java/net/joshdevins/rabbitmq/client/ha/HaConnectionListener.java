@@ -22,6 +22,11 @@ import com.rabbitmq.client.ShutdownSignalException;
 
 /**
  * A listener interface for events on {@link Channel}s and {@link Connection}s.
+ * Notifications and calls to implementations are done so in a synchronous
+ * manner. This guarntees that listeners will be called before any operations
+ * are allowed to take place. This is essential to allow for channel
+ * initialization like queue creation before messages are sent. As such, please
+ * don't be stupid in your implementations and keep this fact in mind!
  * 
  * @author Josh Devins
  */

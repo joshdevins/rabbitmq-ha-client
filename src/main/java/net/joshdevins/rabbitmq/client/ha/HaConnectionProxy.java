@@ -28,13 +28,14 @@ import net.joshdevins.rabbitmq.client.ha.retry.RetryStrategy;
 
 import org.apache.log4j.Logger;
 
-import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Address;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 
 /**
  * A proxy around the standard {@link Connection}.
+ * 
+ * TODO: Catch close method on Connection and Channel to do cleanup.
  * 
  * @author Josh Devins
  */
@@ -55,18 +56,6 @@ public class HaConnectionProxy implements InvocationHandler {
     private final Set<HaChannelProxy> channelProxies;
 
     private final RetryStrategy retryStrategy;
-
-    static {
-
-        // initialize static fields or fail fast
-        try {
-            CREATE_CHANNEL_METHOD = Connection.class.getMethod("createChannel");
-            CREATE_CHANNEL_INT_METHOD = Connection.class.getMethod("createChannel", int.class);
-
-        } catch(Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public HaConnectionProxy(final Address[] addrs, final Integer maxRedirects, final Connection target,
             final RetryStrategy retryStrategy) {
@@ -97,6 +86,10 @@ public class HaConnectionProxy implements InvocationHandler {
         return maxRedirects;
     }
 
+    public Connection getTargetConnection() {
+        return target;
+    }
+
     public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
         // intercept calls to create a channel
@@ -109,8 +102,14 @@ public class HaConnectionProxy implements InvocationHandler {
         return InvocationHandlerUtils.delegateMethodInvocation(method, args, target);
     }
 
-    public void reconnect() {
-        target.abort(AMQP.CHANNEL_ERROR, "reconnect");
+    public void markAsOpen() {
+
+        synchronized(channelProxies) {
+
+            for(HaChannelProxy proxy : channelProxies) {
+                proxy.markAsOpen();
+            }
+        }
     }
 
     protected Channel createChannelAndWrapWithProxy(final Method method, final Object[] args)
@@ -122,7 +121,7 @@ public class HaConnectionProxy implements InvocationHandler {
         Class<?>[] interfaces = { Channel.class };
 
         // create the proxy and add to the set of channels we have created
-        HaChannelProxy proxy = new HaChannelProxy(targetChannel, retryStrategy);
+        HaChannelProxy proxy = new HaChannelProxy(this, targetChannel, retryStrategy);
 
         if(LOG.isDebugEnabled()) {
             LOG.debug("Creating channel proxy: " + targetChannel.toString());
@@ -134,6 +133,12 @@ public class HaConnectionProxy implements InvocationHandler {
         }
 
         return (Channel) Proxy.newProxyInstance(classLoader, interfaces, proxy);
+    }
+
+    protected void removeClosedChannel(final HaChannelProxy channelProxy) {
+        synchronized(channelProxies) {
+            channelProxies.remove(channelProxy);
+        }
     }
 
     protected void replaceChannelsInProxies() throws IOException {
@@ -153,5 +158,17 @@ public class HaConnectionProxy implements InvocationHandler {
 
         assert target != null;
         this.target = target;
+    }
+
+    static {
+
+        // initialize static fields or fail fast
+        try {
+            CREATE_CHANNEL_METHOD = Connection.class.getMethod("createChannel");
+            CREATE_CHANNEL_INT_METHOD = Connection.class.getMethod("createChannel", int.class);
+
+        } catch(Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

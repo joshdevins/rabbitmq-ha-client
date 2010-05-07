@@ -36,17 +36,22 @@ public class HaChannelProxy implements InvocationHandler {
 
     private static final Logger LOG = Logger.getLogger(HaChannelProxy.class);
 
+    private final HaConnectionProxy connectionProxy;
+
     private Channel target;
 
     private final RetryStrategy retryStrategy;
 
     private final BooleanReentrantLatch connectionLatch;
 
-    public HaChannelProxy(final Channel target, final RetryStrategy retryStrategy) {
+    public HaChannelProxy(final HaConnectionProxy connectionProxy, final Channel target,
+            final RetryStrategy retryStrategy) {
 
+        assert connectionProxy != null;
         assert target != null;
         assert retryStrategy != null;
 
+        this.connectionProxy = connectionProxy;
         this.target = target;
         this.retryStrategy = retryStrategy;
 
@@ -59,16 +64,42 @@ public class HaChannelProxy implements InvocationHandler {
 
     public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
+        if(LOG.isDebugEnabled()) {
+            LOG.debug("Invoke: " + method.getName());
+        }
+
+        // TODO: Rethink this assumption!
+        // close is special since we can ignore failures safely
+        if(method.getName().equals("close")) {
+            try {
+                target.close();
+            } catch(Exception e) {
+
+                if(LOG.isDebugEnabled()) {
+                    LOG.debug("Failed to close underlying channel, not a problem: " + e.getMessage());
+                }
+            }
+
+            connectionProxy.removeClosedChannel(this);
+
+            // FIXME: Is this the right return value for a void method?
+            return null;
+        }
+
         // invoke a method max times
         Exception lastException = null;
         boolean shutdownRecoverable = true;
         boolean keepOnInvoking = true;
 
+        // don't check for open state, just let it fail
+        // this will ensure that after a connection has been made, setup can
+        // proceed before letting operations retry
         for(int numOperationInvocations = 1; keepOnInvoking && shutdownRecoverable; numOperationInvocations++) {
 
-            // delegate all method invocations
             // sych on target Channel to make sure it's not being replaced
             synchronized(target) {
+
+                // delegate all other method invocations
                 try {
                     return InvocationHandlerUtils.delegateMethodInvocation(method, args, target);
 
@@ -77,16 +108,21 @@ public class HaChannelProxy implements InvocationHandler {
                     // target
                 } catch(IOException ioe) {
                     lastException = ioe;
-                    // shutdownRecoverable = HaUtils.isShutdownRecoverable(ioe);
+                    shutdownRecoverable = HaUtils.isShutdownRecoverable(ioe);
 
                 } catch(AlreadyClosedException ace) {
                     lastException = ace;
-                    // shutdownRecoverable = HaUtils.isShutdownRecoverable(ace);
+                    shutdownRecoverable = HaUtils.isShutdownRecoverable(ace);
                 }
             }
 
             // only keep on invoking if error is recoverable
             if(shutdownRecoverable) {
+
+                if(LOG.isDebugEnabled()) {
+                    LOG.debug("Invocation failed, calling retry strategy: " + lastException.getMessage());
+                }
+
                 keepOnInvoking = retryStrategy.shouldRetry(lastException, numOperationInvocations, connectionLatch);
             }
         }
@@ -108,6 +144,10 @@ public class HaChannelProxy implements InvocationHandler {
         connectionLatch.close();
     }
 
+    protected void markAsOpen() {
+        connectionLatch.open();
+    }
+
     protected void setTargetChannel(final Channel target) {
 
         assert target != null;
@@ -124,7 +164,5 @@ public class HaChannelProxy implements InvocationHandler {
                 LOG.debug("Replaced channel: channel=" + this.target.toString());
             }
         }
-
-        connectionLatch.open();
     }
 }

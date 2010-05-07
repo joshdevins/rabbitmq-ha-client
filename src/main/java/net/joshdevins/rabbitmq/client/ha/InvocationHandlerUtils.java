@@ -27,6 +27,10 @@ import java.lang.reflect.Method;
  */
 public final class InvocationHandlerUtils {
 
+    private InvocationHandlerUtils() {
+        // do not instantiate
+    }
+
     /**
      * Simple wrapper around {@link Method#invoke(Object, Object...)} which
      * rethrows any target exception.
@@ -39,9 +43,5 @@ public final class InvocationHandlerUtils {
         } catch(InvocationTargetException ite) {
             throw ite.getTargetException();
         }
-    }
-
-    private InvocationHandlerUtils() {
-        // do not instantiate
     }
 }

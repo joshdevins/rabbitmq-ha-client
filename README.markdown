@@ -14,10 +14,11 @@ Completed:
 * publishing messages after broker has gone down
 * publishing messages after broker has restarted
 * callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection
+* consuming messages synchronously using basicGet after a broker has restarted
 
 Working on:
 
-* support for blocking consumers (yes, this is currently only tested from the publisher side!)
+* support for blocking consumers
 * always adding tests of course
 
 Still to be done:

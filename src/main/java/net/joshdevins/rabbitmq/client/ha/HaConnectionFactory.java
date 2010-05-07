@@ -345,7 +345,11 @@ public class HaConnectionFactory extends ConnectionFactory {
 
         Connection target = (Connection) Proxy.newProxyInstance(classLoader, interfaces, proxy);
         HaShutdownListener listener = new HaShutdownListener(proxy);
-        target.addShutdownListener(listener);
+
+        // failed initial connections will have this set later upon successful connection
+        if(targetConnection != null) {
+            target.addShutdownListener(listener);
+        }
 
         return new ConnectionSet(target, proxy, listener);
     }

@@ -24,70 +24,16 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.core.ChannelCallback;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.AMQP.Queue.BindOk;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration("/META-INF/spring/applicationContext.xml")
 public class RabbitTemplateConsumerIntegrationTest {
-
-    private static class TestChannelCallback implements ChannelCallback<BindOk> {
-
-        /*
-         * TODO: Document: If you use an auto-delete queue, you need to recreate it too, but this can fail depending
-         * on the retry strategy being used since a consume method could be invoked in a separate thread from the queue
-         * creation. Furthermore, using any blocking retry strategy on the same channel that was reconnected will cause
-         * a race condition -- which will get called first, the consume message or the queueDecalre/Binding? Or just
-         * don't use an auto-delete queue!
-         */
-        public BindOk doInRabbit(final Channel channel) throws Exception {
-
-            // bind to the default topic and consume all messages
-            channel.queueDeclare("testQueue");
-            return channel.queueBind("testQueue", "amq.topic", "#");
-        }
-    }
-
-    private static class TestHaConnectionListener extends AbstractHaConnectionListener {
-
-        private final ConnectionFactory connectionFactory;
-
-        private final String host;
-
-        private TestHaConnectionListener(final ConnectionFactory connectionFactory, final String host) {
-
-            this.connectionFactory = connectionFactory;
-            this.host = host;
-        }
-
-        @Override
-        public void onReconnection(final HaConnectionProxy connectionProxy) {
-
-            // use a separate connection and channel to avoid race conditions with any operations that are blocked
-            // waiting for the reconnection to finish...and don't cache anything otherwise you get the same problem!
-            try {
-                Connection connection = connectionFactory.newConnection(host);
-                Channel channel = connection.createChannel();
-
-                channel.queueDeclare("testQueue");
-                channel.queueBind("testQueue", "amq.topic", "#");
-
-                channel.close();
-                connection.close();
-
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
 
     private static final Logger LOG = Logger.getLogger(RabbitTemplateConsumerIntegrationTest.class);
 
@@ -109,8 +55,6 @@ public class RabbitTemplateConsumerIntegrationTest {
     public void testSyncConsume() throws UnsupportedEncodingException, InterruptedException {
 
         BindOk bindOk = template.execute(new TestChannelCallback());
-
-        // test for not null or something?
         Assert.assertNotNull(bindOk);
 
         // empty out queue

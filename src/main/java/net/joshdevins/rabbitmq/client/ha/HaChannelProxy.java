@@ -19,6 +19,7 @@ package net.joshdevins.rabbitmq.client.ha;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.concurrent.ConcurrentHashMap;
 
 import net.joshdevins.rabbitmq.client.ha.retry.RetryStrategy;
 
@@ -26,6 +27,7 @@ import org.apache.log4j.Logger;
 
 import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Consumer;
 
 /**
  * A proxy around the standard {@link Channel}.
@@ -36,6 +38,10 @@ public class HaChannelProxy implements InvocationHandler {
 
     private static final Logger LOG = Logger.getLogger(HaChannelProxy.class);
 
+    private static final String BASIC_CONSUME_METHOD_NAME = "basicConsume";
+
+    private static final String CLOSE_METHOD_NAME = "close";
+
     private final HaConnectionProxy connectionProxy;
 
     private Channel target;
@@ -43,6 +49,8 @@ public class HaChannelProxy implements InvocationHandler {
     private final RetryStrategy retryStrategy;
 
     private final BooleanReentrantLatch connectionLatch;
+
+    private final ConcurrentHashMap<Consumer, HaConsumerProxy> consumerProxies;
 
     public HaChannelProxy(final HaConnectionProxy connectionProxy, final Channel target,
             final RetryStrategy retryStrategy) {
@@ -56,6 +64,7 @@ public class HaChannelProxy implements InvocationHandler {
         this.retryStrategy = retryStrategy;
 
         connectionLatch = new BooleanReentrantLatch();
+        consumerProxies = new ConcurrentHashMap<Consumer, HaConsumerProxy>();
     }
 
     public void closeConnectionLatch() {
@@ -70,7 +79,7 @@ public class HaChannelProxy implements InvocationHandler {
 
         // TODO: Rethink this assumption!
         // close is special since we can ignore failures safely
-        if (method.getName().equals("close")) {
+        if (method.getName().equals(CLOSE_METHOD_NAME)) {
             try {
                 target.close();
             } catch (Exception e) {
@@ -99,8 +108,35 @@ public class HaChannelProxy implements InvocationHandler {
             // sych on target Channel to make sure it's not being replaced
             synchronized (target) {
 
-                // delegate all other method invocations
                 try {
+
+                    // wrap the incoming consumer with a proxy, then invoke
+                    if (method.getName().equals(BASIC_CONSUME_METHOD_NAME)) {
+
+                        // Consumer is always the last argument, let it fail if not
+                        Consumer targetConsumer = (Consumer) args[args.length - 1];
+
+                        // already wrapped?
+                        if (!(targetConsumer instanceof HaConsumerProxy)) {
+
+                            // check to see if we already have a proxied Consumer
+                            HaConsumerProxy consumerProxy = consumerProxies.get(targetConsumer);
+                            if (consumerProxy == null) {
+                                consumerProxy = new HaConsumerProxy(targetConsumer, this, method, args);
+                            }
+
+                            // currently we think there is not a proxy
+                            // try to do this atomically and worse case someone else already created one
+                            HaConsumerProxy existingConsumerProxy = consumerProxies.putIfAbsent(targetConsumer,
+                                    consumerProxy);
+
+                            // replace with the proxy for the real invocation
+                            args[args.length - 1] = existingConsumerProxy == null ? consumerProxy
+                                    : existingConsumerProxy;
+                        }
+                    }
+
+                    // delegate all other method invocations
                     return InvocationHandlerUtils.delegateMethodInvocation(method, args, target);
 
                     // deal with exceptions outside the synchronized block so
@@ -113,6 +149,13 @@ public class HaChannelProxy implements InvocationHandler {
                 } catch (AlreadyClosedException ace) {
                     lastException = ace;
                     shutdownRecoverable = HaUtils.isShutdownRecoverable(ace);
+                } catch (Throwable t) {
+                    // catch all
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Catch all", t);
+                    }
+
+                    throw t;
                 }
             }
 

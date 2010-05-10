@@ -10,15 +10,16 @@ This is a major work in progress still! Watch this project and this page for reg
 
 Completed:
 
-* creating a new connection with no broker running (this blocks synchronously right now, so lazily create your connections!)
-* publishing messages after broker has gone down
+* callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection (facilitates auto-delete queue recreation)
+* creating a new connection while a broker is down (publisher will block until connection is created, so lazily create your connections!)
+* publishing messages while a broker is down (publisher will block until connection returns)
 * publishing messages after broker has restarted
-* callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection
-* consuming messages synchronously using basicGet after a broker has restarted
+* consuming messages (non-blocking) using basicGet while a broker is down (consumer will block on basicGet until connection returns)
+* consuming messages (non-blocking) using basicGet after a broker has restarted
+* consuming messages (blocking) using basicConsume after a broker has restarted (consumer will not notice connection drop at all)
 
 Working on:
 
-* support for blocking consumers
 * always adding tests of course
 
 Still to be done:
@@ -26,8 +27,8 @@ Still to be done:
 * tests, waaaay more tests :)
 * documentation and examples, specifically what to do on connection and reconnection events (queue declaration, etc.)
 * handling of ack's and transactions that need to happen after a reconnection
-* hook in message receipt path to do message deduplication 
 * more customizability and tuning for reconnection values
+* hook in message receipt path to do message deduplication
 
 Usage
 -----

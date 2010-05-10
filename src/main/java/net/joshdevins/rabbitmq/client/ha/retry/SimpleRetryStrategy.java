@@ -64,35 +64,35 @@ public class SimpleRetryStrategy implements RetryStrategy {
     public boolean shouldRetry(final Exception e, final int numOperationInvocations,
             final BooleanReentrantLatch connectionGate) {
 
-        if(LOG.isDebugEnabled()) {
+        if (LOG.isDebugEnabled()) {
             LOG.debug("Operation invocation failed on IOException: numOperationInvocations=" + numOperationInvocations
                     + ", maxOperationInvocations=" + maxOperationInvocations + ", message=" + e.getMessage());
         }
 
-        if(numOperationInvocations == maxOperationInvocations) {
+        if (numOperationInvocations == maxOperationInvocations) {
 
-            if(LOG.isDebugEnabled()) {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("Max number of operation invocations reached, not retrying: " + maxOperationInvocations);
             }
 
             return false;
         }
 
-        if(operationRetryTimeoutMillis > 0) {
+        if (operationRetryTimeoutMillis > 0) {
 
-            if(LOG.isDebugEnabled()) {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("Sleeping before next operation invocation (millis): " + operationRetryTimeoutMillis);
             }
 
             try {
                 Thread.sleep(operationRetryTimeoutMillis);
-            } catch(InterruptedException ie) {
+            } catch (InterruptedException ie) {
                 LOG.warn("Interrupted during timeout waiting for next operation invocation to occurr. "
                         + "Retrying invocation now.");
             }
         } else {
 
-            if(LOG.isDebugEnabled()) {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("No timeout set, retrying immediately");
             }
         }

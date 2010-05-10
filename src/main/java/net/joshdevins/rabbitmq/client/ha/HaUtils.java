@@ -41,7 +41,7 @@ public final class HaUtils {
      */
     public static boolean isShutdownRecoverable(final IOException ioe) {
 
-        if(ioe.getCause() instanceof ShutdownSignalException) {
+        if (ioe.getCause() instanceof ShutdownSignalException) {
             return isShutdownRecoverable((ShutdownSignalException) ioe.getCause());
         }
 
@@ -63,14 +63,14 @@ public final class HaUtils {
      */
     public static boolean isShutdownRecoverable(final ShutdownSignalException s) {
 
-        if(s != null) {
+        if (s != null) {
             int replyCode = 0;
 
-            if(s.getReason() instanceof AMQImpl.Connection.Close) {
+            if (s.getReason() instanceof AMQImpl.Connection.Close) {
                 replyCode = ((AMQImpl.Connection.Close) s.getReason()).getReplyCode();
             }
 
-            if(s.isInitiatedByApplication()) {
+            if (s.isInitiatedByApplication()) {
 
                 return replyCode == AMQP.CONNECTION_FORCED || replyCode == AMQP.INTERNAL_ERROR
                         || s.getCause() instanceof EOFException || s instanceof AlreadyClosedException;

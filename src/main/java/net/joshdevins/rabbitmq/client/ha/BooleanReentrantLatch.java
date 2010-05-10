@@ -57,7 +57,7 @@ public class BooleanReentrantLatch {
         protected int tryAcquireShared(final int acquires) {
 
             // if acquires is 0, this is a test only not an acquisition attempt
-            if(acquires == 0) {
+            if (acquires == 0) {
 
                 // if open, thread can proceed right away
                 // if closed, thread needs to wait
@@ -93,7 +93,7 @@ public class BooleanReentrantLatch {
     @Override
     public boolean equals(final Object obj) {
 
-        if(!(obj instanceof BooleanReentrantLatch)) {
+        if (!(obj instanceof BooleanReentrantLatch)) {
             return false;
         }
 

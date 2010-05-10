@@ -73,7 +73,7 @@ public class HaConnectionProxy implements InvocationHandler {
     }
 
     public void closeConnectionLatch() {
-        for(HaChannelProxy proxy : channelProxies) {
+        for (HaChannelProxy proxy : channelProxies) {
             proxy.closeConnectionLatch();
         }
     }
@@ -93,7 +93,7 @@ public class HaConnectionProxy implements InvocationHandler {
     public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
         // intercept calls to create a channel
-        if(method.equals(CREATE_CHANNEL_METHOD) || method.equals(CREATE_CHANNEL_INT_METHOD)) {
+        if (method.equals(CREATE_CHANNEL_METHOD) || method.equals(CREATE_CHANNEL_INT_METHOD)) {
 
             return createChannelAndWrapWithProxy(method, args);
         }
@@ -104,9 +104,9 @@ public class HaConnectionProxy implements InvocationHandler {
 
     public void markAsOpen() {
 
-        synchronized(channelProxies) {
+        synchronized (channelProxies) {
 
-            for(HaChannelProxy proxy : channelProxies) {
+            for (HaChannelProxy proxy : channelProxies) {
                 proxy.markAsOpen();
             }
         }
@@ -123,12 +123,12 @@ public class HaConnectionProxy implements InvocationHandler {
         // create the proxy and add to the set of channels we have created
         HaChannelProxy proxy = new HaChannelProxy(this, targetChannel, retryStrategy);
 
-        if(LOG.isDebugEnabled()) {
+        if (LOG.isDebugEnabled()) {
             LOG.debug("Creating channel proxy: " + targetChannel.toString());
         }
 
         // save the channel number-to-proxy relationship to be replaced later
-        synchronized(channelProxies) {
+        synchronized (channelProxies) {
             channelProxies.add(proxy);
         }
 
@@ -136,16 +136,16 @@ public class HaConnectionProxy implements InvocationHandler {
     }
 
     protected void removeClosedChannel(final HaChannelProxy channelProxy) {
-        synchronized(channelProxies) {
+        synchronized (channelProxies) {
             channelProxies.remove(channelProxy);
         }
     }
 
     protected void replaceChannelsInProxies() throws IOException {
 
-        synchronized(channelProxies) {
+        synchronized (channelProxies) {
 
-            for(HaChannelProxy proxy : channelProxies) {
+            for (HaChannelProxy proxy : channelProxies) {
 
                 // replace dead channel with a new one using the same ID
                 int channelNumber = proxy.getTargetChannel().getChannelNumber();
@@ -167,7 +167,7 @@ public class HaConnectionProxy implements InvocationHandler {
             CREATE_CHANNEL_METHOD = Connection.class.getMethod("createChannel");
             CREATE_CHANNEL_INT_METHOD = Connection.class.getMethod("createChannel", int.class);
 
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

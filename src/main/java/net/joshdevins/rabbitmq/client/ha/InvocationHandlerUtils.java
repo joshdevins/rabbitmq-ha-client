@@ -40,7 +40,7 @@ public final class InvocationHandlerUtils {
 
         try {
             return method.invoke(target, args);
-        } catch(InvocationTargetException ite) {
+        } catch (InvocationTargetException ite) {
             throw ite.getTargetException();
         }
     }

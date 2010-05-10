@@ -88,22 +88,22 @@ public class HaConnectionFactory extends ConnectionFactory {
 
         public void shutdownCompleted(final ShutdownSignalException shutdownSignalException) {
 
-            if(LOG.isDebugEnabled()) {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("Shutdown signal caught: " + shutdownSignalException.getMessage());
             }
 
-            for(HaConnectionListener listener : listeners) {
+            for (HaConnectionListener listener : listeners) {
                 listener.onDisconnect(connectionProxy, shutdownSignalException);
             }
 
             // only try to reconnect if it was a problem with the broker
-            if(!shutdownSignalException.isInitiatedByApplication()) {
+            if (!shutdownSignalException.isInitiatedByApplication()) {
 
                 // start an async reconnection
                 executorService.submit(new ReconnectionTask(true, this, connectionProxy));
 
             } else {
-                if(LOG.isDebugEnabled()) {
+                if (LOG.isDebugEnabled()) {
                     LOG.debug("Ignoring shutdown signal, application initiated");
                 }
             }
@@ -136,20 +136,20 @@ public class HaConnectionFactory extends ConnectionFactory {
 
             String addressesAsString = getAddressesAsString();
 
-            if(LOG.isDebugEnabled()) {
+            if (LOG.isDebugEnabled()) {
                 LOG.info("Reconnection starting, sleeping: addresses=" + addressesAsString + ", wait="
                         + reconnectionWaitMillis);
             }
 
             // TODO: Add max reconnection attempts
             boolean connected = false;
-            while(!connected) {
+            while (!connected) {
 
                 try {
                     Thread.sleep(reconnectionWaitMillis);
-                } catch(InterruptedException ie) {
+                } catch (InterruptedException ie) {
 
-                    if(LOG.isDebugEnabled()) {
+                    if (LOG.isDebugEnabled()) {
                         LOG.debug("Reconnection timer thread was interrupted, ignoring and reconnecting now");
                     }
                 }
@@ -157,14 +157,14 @@ public class HaConnectionFactory extends ConnectionFactory {
                 Exception exception = null;
                 try {
                     Connection connection;
-                    if(connectionProxy.getMaxRedirects() == null) {
+                    if (connectionProxy.getMaxRedirects() == null) {
                         connection = newTargetConnection(connectionProxy.getAddresses(), 0);
                     } else {
                         connection = newTargetConnection(connectionProxy.getAddresses(), connectionProxy
                                 .getMaxRedirects());
                     }
 
-                    if(LOG.isDebugEnabled()) {
+                    if (LOG.isDebugEnabled()) {
                         LOG.info("Reconnection complete: addresses=" + addressesAsString);
                     }
 
@@ -176,39 +176,39 @@ public class HaConnectionFactory extends ConnectionFactory {
 
                     connected = true;
 
-                    if(reconnection) {
-                        for(HaConnectionListener listener : listeners) {
+                    if (reconnection) {
+                        for (HaConnectionListener listener : listeners) {
                             listener.onReconnection(connectionProxy);
                         }
 
                     } else {
-                        for(HaConnectionListener listener : listeners) {
+                        for (HaConnectionListener listener : listeners) {
                             listener.onConnection(connectionProxy);
                         }
                     }
 
                     connectionProxy.markAsOpen();
 
-                } catch(ConnectException ce) {
+                } catch (ConnectException ce) {
                     // connection refused
                     exception = ce;
 
-                } catch(IOException ioe) {
+                } catch (IOException ioe) {
                     // some other connection problem
                     exception = ioe;
                 }
 
-                if(exception != null) {
+                if (exception != null) {
                     LOG.warn("Failed to reconnect, retrying: addresses=" + addressesAsString + ", message="
                             + exception.getMessage());
 
-                    if(reconnection) {
-                        for(HaConnectionListener listener : listeners) {
+                    if (reconnection) {
+                        for (HaConnectionListener listener : listeners) {
                             listener.onReconnectFailure(connectionProxy, exception);
                         }
 
                     } else {
-                        for(HaConnectionListener listener : listeners) {
+                        for (HaConnectionListener listener : listeners) {
                             listener.onConnectFailure(connectionProxy, exception);
                         }
                     }
@@ -221,9 +221,9 @@ public class HaConnectionFactory extends ConnectionFactory {
             StringBuilder sb = new StringBuilder();
             sb.append('[');
 
-            for(int i = 0; i < connectionProxy.getAddresses().length; i++) {
+            for (int i = 0; i < connectionProxy.getAddresses().length; i++) {
 
-                if(i > 0) {
+                if (i > 0) {
                     sb.append(',');
                 }
 
@@ -280,7 +280,7 @@ public class HaConnectionFactory extends ConnectionFactory {
         try {
             target = super.newConnection(addrs, maxRedirects);
 
-        } catch(IOException ioe) {
+        } catch (IOException ioe) {
             LOG.warn("Initial connection failed, wrapping anyways and letting reconnector go to work: "
                     + ioe.getMessage());
         }
@@ -288,7 +288,7 @@ public class HaConnectionFactory extends ConnectionFactory {
         ConnectionSet connectionPair = createConnectionProxy(addrs, maxRedirects, target);
 
         // connection success
-        if(target != null) {
+        if (target != null) {
             return connectionPair.wrapped;
 
         }
@@ -337,7 +337,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 
         HaConnectionProxy proxy = new HaConnectionProxy(addrs, maxRedirects, targetConnection, retryStrategy);
 
-        if(LOG.isDebugEnabled()) {
+        if (LOG.isDebugEnabled()) {
             LOG
                     .debug("Creating connection proxy: "
                             + (targetConnection == null ? "none" : targetConnection.toString()));
@@ -347,7 +347,7 @@ public class HaConnectionFactory extends ConnectionFactory {
         HaShutdownListener listener = new HaShutdownListener(proxy);
 
         // failed initial connections will have this set later upon successful connection
-        if(targetConnection != null) {
+        if (targetConnection != null) {
             target.addShutdownListener(listener);
         }
 

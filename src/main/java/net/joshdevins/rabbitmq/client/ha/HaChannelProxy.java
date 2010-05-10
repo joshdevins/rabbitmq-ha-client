@@ -64,18 +64,18 @@ public class HaChannelProxy implements InvocationHandler {
 
     public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
-        if(LOG.isDebugEnabled()) {
+        if (LOG.isDebugEnabled()) {
             LOG.debug("Invoke: " + method.getName());
         }
 
         // TODO: Rethink this assumption!
         // close is special since we can ignore failures safely
-        if(method.getName().equals("close")) {
+        if (method.getName().equals("close")) {
             try {
                 target.close();
-            } catch(Exception e) {
+            } catch (Exception e) {
 
-                if(LOG.isDebugEnabled()) {
+                if (LOG.isDebugEnabled()) {
                     LOG.debug("Failed to close underlying channel, not a problem: " + e.getMessage());
                 }
             }
@@ -94,10 +94,10 @@ public class HaChannelProxy implements InvocationHandler {
         // don't check for open state, just let it fail
         // this will ensure that after a connection has been made, setup can
         // proceed before letting operations retry
-        for(int numOperationInvocations = 1; keepOnInvoking && shutdownRecoverable; numOperationInvocations++) {
+        for (int numOperationInvocations = 1; keepOnInvoking && shutdownRecoverable; numOperationInvocations++) {
 
             // sych on target Channel to make sure it's not being replaced
-            synchronized(target) {
+            synchronized (target) {
 
                 // delegate all other method invocations
                 try {
@@ -106,20 +106,20 @@ public class HaChannelProxy implements InvocationHandler {
                     // deal with exceptions outside the synchronized block so
                     // that if a reconnection does occur, it can replace the
                     // target
-                } catch(IOException ioe) {
+                } catch (IOException ioe) {
                     lastException = ioe;
                     shutdownRecoverable = HaUtils.isShutdownRecoverable(ioe);
 
-                } catch(AlreadyClosedException ace) {
+                } catch (AlreadyClosedException ace) {
                     lastException = ace;
                     shutdownRecoverable = HaUtils.isShutdownRecoverable(ace);
                 }
             }
 
             // only keep on invoking if error is recoverable
-            if(shutdownRecoverable) {
+            if (shutdownRecoverable) {
 
-                if(LOG.isDebugEnabled()) {
+                if (LOG.isDebugEnabled()) {
                     LOG.debug("Invocation failed, calling retry strategy: " + lastException.getMessage());
                 }
 
@@ -127,7 +127,7 @@ public class HaChannelProxy implements InvocationHandler {
             }
         }
 
-        if(shutdownRecoverable) {
+        if (shutdownRecoverable) {
             LOG.warn("Operation invocation failed after retry strategy gave up", lastException);
         } else {
             LOG.warn("Operation invocation failed with unrecoverable shutdown signal", lastException);
@@ -152,15 +152,15 @@ public class HaChannelProxy implements InvocationHandler {
 
         assert target != null;
 
-        if(LOG.isDebugEnabled() && this.target != null) {
+        if (LOG.isDebugEnabled() && this.target != null) {
             LOG.debug("Replacing channel: channel=" + this.target.toString());
         }
 
-        synchronized(this.target) {
+        synchronized (this.target) {
 
             this.target = target;
 
-            if(LOG.isDebugEnabled() && this.target != null) {
+            if (LOG.isDebugEnabled() && this.target != null) {
                 LOG.debug("Replaced channel: channel=" + this.target.toString());
             }
         }

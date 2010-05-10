@@ -42,7 +42,7 @@ public class BooleanReentrantLatchTest {
                 latch.waitUntilOpen();
                 return new Date().getTime() - startTime;
 
-            } catch(InterruptedException ie) {
+            } catch (InterruptedException ie) {
                 return new Long(-1);
             }
         }
@@ -83,7 +83,7 @@ public class BooleanReentrantLatchTest {
         latch = new BooleanReentrantLatch(false);
         Assert.assertTrue(latch.isClosed());
 
-        for(int i = 0; i < NUM_REPETITIONS; i++) {
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
             latch.close();
             Assert.assertTrue(latch.isClosed());
         }
@@ -92,7 +92,7 @@ public class BooleanReentrantLatchTest {
     @Test
     public void basicRepeatedCloseThenOpenTest() {
 
-        for(int i = 0; i < NUM_REPETITIONS; i++) {
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
 
             Assert.assertTrue(latch.isOpen());
 
@@ -108,7 +108,7 @@ public class BooleanReentrantLatchTest {
 
         Assert.assertTrue(latch.isOpen());
 
-        for(int i = 0; i < NUM_REPETITIONS; i++) {
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
             latch.open();
             Assert.assertTrue(latch.isOpen());
         }
@@ -145,22 +145,22 @@ public class BooleanReentrantLatchTest {
         int numTestCallables = 10;
 
         TestCallable[] testCallables = new TestCallable[numTestCallables];
-        for(int i = 0; i < numTestCallables; i++) {
+        for (int i = 0; i < numTestCallables; i++) {
             testCallables[i] = new TestCallable();
         }
 
         ExecutorService service = Executors.newFixedThreadPool(numTestCallables);
 
-        for(int i = 0; i < NUM_REPETITIONS; i++) {
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
 
             latch.close();
 
             List<Future<Long>> futures = new LinkedList<Future<Long>>();
-            for(int j = 0; j < numTestCallables; j++) {
+            for (int j = 0; j < numTestCallables; j++) {
                 futures.add(service.submit(testCallables[j]));
             }
 
-            for(Future<Long> future : futures) {
+            for (Future<Long> future : futures) {
 
                 // threads are not finished
                 Assert.assertFalse(future.isDone());
@@ -173,7 +173,7 @@ public class BooleanReentrantLatchTest {
             // wait a sec before testing the state
             Thread.sleep(100);
 
-            for(Future<Long> future : futures) {
+            for (Future<Long> future : futures) {
 
                 // threads are finished
                 Assert.assertTrue(future.isDone());

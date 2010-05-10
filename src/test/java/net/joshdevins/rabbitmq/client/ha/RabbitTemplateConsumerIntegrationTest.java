@@ -83,7 +83,7 @@ public class RabbitTemplateConsumerIntegrationTest {
                 channel.close();
                 connection.close();
 
-            } catch(Exception e) {
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
@@ -114,14 +114,14 @@ public class RabbitTemplateConsumerIntegrationTest {
         Assert.assertNotNull(bindOk);
 
         // empty out queue
-        while(template.receive("testQueue") != null) {
+        while (template.receive("testQueue") != null) {
             receiveMessage(1, template.receive("testQueue"));
         }
 
         receiveMessage(1, template.receive("testQueue"));
 
         // empty out queue
-        while(true) {
+        while (true) {
             Thread.sleep(1000);
             receiveMessage(1, template.receive("testQueue"));
         }
@@ -129,7 +129,7 @@ public class RabbitTemplateConsumerIntegrationTest {
 
     private void receiveMessage(final int expected, final Message message) throws UnsupportedEncodingException {
 
-        if(message == null) {
+        if (message == null) {
             LOG.info("no message");
             return;
         }

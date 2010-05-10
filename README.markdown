@@ -17,6 +17,9 @@ Completed:
 * consuming messages (non-blocking) using basicGet while a broker is down (consumer will block on basicGet until connection returns)
 * consuming messages (non-blocking) using basicGet after a broker has restarted
 * consuming messages (blocking) using basicConsume after a broker has restarted (consumer will not notice connection drop at all)
+* consistency testing (non-transactional):
+   * 1000 publishes, 20ms between publishes,  ~50 messages/sec, 1 node restart, 0 message loss
+   * 1000 publishes, 10ms between publishes, ~100 messages/sec, 1 node restart, 5 message loss
 
 Working on:
 
@@ -25,8 +28,8 @@ Working on:
 Still to be done:
 
 * tests, waaaay more tests :)
-* documentation and examples, specifically what to do on connection and reconnection events (queue declaration, etc.)
-* handling of ack's and transactions that need to happen after a reconnection
+* documentation and examples, specifically what to do on connection and reconnection events (auto-delete queue recreation, etc.)
+* handling of ack's and transactions after a reconnect for messages sent before reconnect
 * more customizability and tuning for reconnection values
 * hook in message receipt path to do message deduplication
 

@@ -17,9 +17,9 @@ Completed:
 * consuming messages (non-blocking) using basicGet while a broker is down (consumer will block on basicGet until connection returns)
 * consuming messages (non-blocking) using basicGet after a broker has restarted
 * consuming messages (blocking) using basicConsume after a broker has restarted (consumer will not notice connection drop at all)
-* consistency testing (non-transactional):
-   * 1000 publishes, 20ms between publishes,  ~50 messages/sec, 1 node restart, 0 message loss
-   * 1000 publishes, 10ms between publishes, ~100 messages/sec, 1 node restart, 5 message loss
+* consistency testing (non-transactional, durable queue):
+   * 1000 publishes, 20ms between publishes,  ~50 messages/sec, 1 node restart, 0 messages lost
+   * 1000 publishes, 10ms between publishes, ~100 messages/sec, 1 node restart, 2 messages lost
 
 Working on:
 

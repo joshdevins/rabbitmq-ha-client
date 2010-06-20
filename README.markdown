@@ -11,27 +11,29 @@ This is a major work in progress still! Watch this project and this page for reg
 Completed:
 
 * callbacks to listeners on: connection, connection failure, reconnection, reconnection failure, disconnection (facilitates auto-delete queue recreation)
-* creating a new connection while a broker is down (publisher will block until connection is created, so lazily create your connections!)
+* creating a new connection while a broker is down (publisher will block until connection is created, so you should probably lazily create your connections)
 * publishing messages while a broker is down (publisher will block until connection returns)
 * publishing messages after broker has restarted
 * consuming messages (non-blocking) using basicGet while a broker is down (consumer will block on basicGet until connection returns)
 * consuming messages (non-blocking) using basicGet after a broker has restarted
 * consuming messages (blocking) using basicConsume after a broker has restarted (consumer will not notice connection drop at all)
 * consistency testing (non-transactional, durable queue):
-   * 1000 publishes, 20ms between publishes,  ~50 messages/sec, 1 node restart, 0 messages lost
-   * 1000 publishes, 10ms between publishes, ~100 messages/sec, 1 node restart, 1 messages lost
+   * 1000 publishes, 20ms between publishes, ~50 messages/sec, 1 node restart, 0 messages lost
+   * 1000 publishes, 10ms between publishes, ~100 messages/sec, 1 node restart, 1 message lost
 
 Working on:
 
-* always adding tests of course
+* handling of ACKs after a reconnect for messages sent before reconnect
+* adding more tests of course
 
 Still to be done:
 
-* tests, waaaay more tests :)
 * documentation and examples, specifically what to do on connection and reconnection events (auto-delete queue recreation, etc.)
-* handling of ack's and transactions after a reconnect for messages sent before reconnect
+* handling of transactions after a reconnect for messages sent before reconnect (transaction will fail)
+* consistency testing (transactional, durable queue)
 * more customizability and tuning for reconnection values
-* hook in message receipt path to do message deduplication
+* hook in message receipt path to do message de-duplication
+* ability to specify non-blocking option while broker is down/reconnecting (i.e. queue up messages in-memory; this wouldn't make much sense with transactional channels though)
 
 Usage
 -----

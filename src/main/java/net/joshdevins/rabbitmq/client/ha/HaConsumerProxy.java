@@ -83,6 +83,10 @@ public class HaConsumerProxy implements Consumer {
         executor = Executors.newCachedThreadPool();
     }
 
+	public void handleCancel(final String consumerTag) throws IOException {
+		target.handleCancel(consumerTag);
+	}
+
     public void handleCancelOk(final String consumerTag) {
         target.handleCancelOk(consumerTag);
     }
@@ -95,6 +99,10 @@ public class HaConsumerProxy implements Consumer {
             final byte[] body) throws IOException {
         target.handleDelivery(consumerTag, envelope, properties, body);
     }
+
+	public void handleRecoverOk(final String consumerTag) {
+		target.handleRecoverOk(consumerTag);
+	}
 
     public void handleShutdownSignal(final String consumerTag, final ShutdownSignalException sig) {
 

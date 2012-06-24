@@ -78,7 +78,7 @@ public class RabbitConsistencyIntegrationTest {
         // setup async container
         SimpleMessageListenerContainer container = new SimpleMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.setQueueName("testQueue");
+        container.setQueueNames("testQueue");
         container.setConcurrentConsumers(NUM_CONSUMERS);
         // container.setChannelTransacted(true);
 

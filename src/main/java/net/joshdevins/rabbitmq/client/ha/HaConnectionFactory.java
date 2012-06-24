@@ -35,7 +35,6 @@ import com.rabbitmq.client.Address;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.ConnectionParameters;
 import com.rabbitmq.client.ShutdownListener;
 import com.rabbitmq.client.ShutdownSignalException;
 
@@ -156,13 +155,7 @@ public class HaConnectionFactory extends ConnectionFactory {
 
                 Exception exception = null;
                 try {
-                    Connection connection;
-                    if (connectionProxy.getMaxRedirects() == null) {
-                        connection = newTargetConnection(connectionProxy.getAddresses(), 0);
-                    } else {
-                        connection = newTargetConnection(connectionProxy.getAddresses(), connectionProxy
-                                .getMaxRedirects());
-                    }
+                    Connection connection = newTargetConnection(connectionProxy.getAddresses());
 
                     if (LOG.isDebugEnabled()) {
                         LOG.info("Reconnection complete: addresses=" + addressesAsString);
@@ -251,11 +244,7 @@ public class HaConnectionFactory extends ConnectionFactory {
     private Set<HaConnectionListener> listeners;
 
     public HaConnectionFactory() {
-        this(new ConnectionParameters());
-    }
-
-    public HaConnectionFactory(final ConnectionParameters params) {
-        super(params);
+        super();
 
         executorService = Executors.newCachedThreadPool();
         setDefaultRetryStrategy();
@@ -274,18 +263,18 @@ public class HaConnectionFactory extends ConnectionFactory {
      * @see ConnectionFactory#newConnection(Address[], int)
      */
     @Override
-    public Connection newConnection(final Address[] addrs, final int maxRedirects) throws IOException {
+    public Connection newConnection(final Address[] addrs) throws IOException {
 
         Connection target = null;
         try {
-            target = super.newConnection(addrs, maxRedirects);
+            target = super.newConnection(addrs);
 
         } catch (IOException ioe) {
             LOG.warn("Initial connection failed, wrapping anyways and letting reconnector go to work: "
                     + ioe.getMessage());
         }
 
-        ConnectionSet connectionPair = createConnectionProxy(addrs, maxRedirects, target);
+        ConnectionSet connectionPair = createConnectionProxy(addrs, target);
 
         // connection success
         if (target != null) {
@@ -329,13 +318,13 @@ public class HaConnectionFactory extends ConnectionFactory {
     /**
      * Creates an {@link HaConnectionProxy} around a raw {@link Connection}.
      */
-    protected ConnectionSet createConnectionProxy(final Address[] addrs, final Integer maxRedirects,
+    protected ConnectionSet createConnectionProxy(final Address[] addrs,
             final Connection targetConnection) {
 
         ClassLoader classLoader = Connection.class.getClassLoader();
         Class<?>[] interfaces = { Connection.class };
 
-        HaConnectionProxy proxy = new HaConnectionProxy(addrs, maxRedirects, targetConnection, retryStrategy);
+        HaConnectionProxy proxy = new HaConnectionProxy(addrs, targetConnection, retryStrategy);
 
         if (LOG.isDebugEnabled()) {
             LOG
@@ -354,8 +343,8 @@ public class HaConnectionFactory extends ConnectionFactory {
         return new ConnectionSet(target, proxy, listener);
     }
 
-    private Connection newTargetConnection(final Address[] addrs, final int maxRedirects) throws IOException {
-        return super.newConnection(addrs, maxRedirects);
+    private Connection newTargetConnection(final Address[] addrs) throws IOException {
+        return super.newConnection(addrs);
     }
 
     private void setDefaultRetryStrategy() {

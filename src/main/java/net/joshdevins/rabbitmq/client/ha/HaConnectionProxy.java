@@ -49,15 +49,13 @@ public class HaConnectionProxy implements InvocationHandler {
 
     private final Address[] addrs;
 
-    private final Integer maxRedirects;
-
     private Connection target;
 
     private final Set<HaChannelProxy> channelProxies;
 
     private final RetryStrategy retryStrategy;
 
-    public HaConnectionProxy(final Address[] addrs, final Integer maxRedirects, final Connection target,
+    public HaConnectionProxy(final Address[] addrs, final Connection target,
             final RetryStrategy retryStrategy) {
 
         assert addrs != null;
@@ -66,7 +64,6 @@ public class HaConnectionProxy implements InvocationHandler {
 
         this.target = target;
         this.addrs = addrs;
-        this.maxRedirects = maxRedirects;
         this.retryStrategy = retryStrategy;
 
         channelProxies = new HashSet<HaChannelProxy>();
@@ -80,10 +77,6 @@ public class HaConnectionProxy implements InvocationHandler {
 
     public Address[] getAddresses() {
         return addrs;
-    }
-
-    public Integer getMaxRedirects() {
-        return maxRedirects;
     }
 
     public Connection getTargetConnection() {

@@ -5,11 +5,35 @@
 
     <groupId>net.joshdevins.rabbitmq</groupId>
     <artifactId>rabbitmq-ha-client</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>RabbitMQ HA Client</name>
     <url>http://github.com/joshdevins/rabbitmq-ha-client</url>
+
+    <scm>
+        <connection>scm:git:git://github.com/joshdevins/rabbitmq-ha-client.git</connection>
+        <developerConnection>scm:git:git@github.com:joshdevins/rabbitmq-ha-client.git</developerConnection>
+        <url>http://github.com/joshdevins/rabbitmq-ha-client/</url>
+    </scm>
+
+    <issueManagement>
+        <system>github</system>
+        <url>http://github.com/joshdevins/rabbitmq-ha-client/issues#issue/</url>
+    </issueManagement>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>soundcloud.thirdparty.snapshots</id>
+            <name>SoundCloud 3rd Party - Snapshots</name>
+            <url>http://maven.int.s-cloud.net/content/repositories/thirdparty_snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>soundcloud.thirdparty.releases</id>
+            <name>SoundCloud 3rd Party - Releases</name>
+            <url>http://maven.int.s-cloud.net/content/repositories/thirdparty_releases</url>
+        </repository>
+    </distributionManagement>
 
     <dependencies>
         <dependency>

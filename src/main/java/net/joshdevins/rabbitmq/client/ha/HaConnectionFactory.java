@@ -263,11 +263,10 @@ public class HaConnectionFactory extends ConnectionFactory {
      * @see ConnectionFactory#newConnection(Address[], int)
      */
     @Override
-    public Connection newConnection(final Address[] addrs) throws IOException {
-
+    public Connection newConnection(ExecutorService executor, Address[] addrs) {
         Connection target = null;
         try {
-            target = super.newConnection(addrs);
+            target = super.newConnection(executor, addrs);
 
         } catch (IOException ioe) {
             LOG.warn("Initial connection failed, wrapping anyways and letting reconnector go to work: "
@@ -344,7 +343,7 @@ public class HaConnectionFactory extends ConnectionFactory {
     }
 
     private Connection newTargetConnection(final Address[] addrs) throws IOException {
-        return super.newConnection(addrs);
+        return super.newConnection(null, addrs);
     }
 
     private void setDefaultRetryStrategy() {
